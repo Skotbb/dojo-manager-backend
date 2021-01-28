@@ -1,7 +1,6 @@
 package com.dojomanager.services;
 
-import java.util.HashSet;
-import java.util.List;
+import java.util.Optional;
 import java.util.Set;
 
 import com.dojomanager.data.entities.dojo.Dojo;
@@ -26,9 +25,8 @@ public class DojoService {
     private Logger logger = LoggerFactory.getLogger(DojoService.class);
 
     public Dojo saveDojo(Dojo dojo) {
-        try {
-            dojo = dojoRepo.save(dojo);
-            // dojo.getOwner().addDojo(dojo);
+        try {            
+            dojo = dojoRepo.saveAndFlush(dojo);
             return dojo;
         } catch (Exception e) {
             logger.error("Could not save Dojo " + dojo.getName(), e);
@@ -40,25 +38,25 @@ public class DojoService {
         return Sets.newHashSet(dojoRepo.saveAll(dojos));
     }
 
+    public DojoOwner addDojoToOwner(Dojo dojo, DojoOwner owner) {
+        owner.addDojo(dojo);
+        
+        dojoRepo.save(dojo);
+        return ownerRepo.save(owner);
+    }
+
     public boolean isNameAvailable(String name) {
         return dojoRepo.findByName(name.toLowerCase()) == null;
     }
 
-    public List<Dojo> addDojoToOwner(Dojo dojo, DojoOwner owner) {
-        List<Dojo> currentDojos = owner.getManagedDojos();
-
-        if(currentDojos.isEmpty() || !currentDojos.contains(dojo)) {
-            dojo.setOwner(owner);   // why the fuck
-            // dojoRepo.save(dojo);
-            currentDojos.add(dojo);
-            
-            // ownerRepo.save(owner);
-
-            return currentDojos;
+    public Dojo getDojoById(Long id) {
+        Optional<Dojo> dojoOption = dojoRepo.findById(id);
+        if(dojoOption.isPresent()) {
+            return dojoOption.get();
         }
-        else{
-            logger.info("Dojo is already attached to " + owner.getEmail());
-            return currentDojos;
-        }
+        else {
+            logger.warn("Could not find Dojo with id="+id);
+            return new Dojo();
+        }         
     }
 }
