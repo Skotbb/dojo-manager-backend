@@ -1,38 +1,30 @@
 package com.dojomanager.data.entities.dojo;
 
-import javax.persistence.CascadeType;
 import javax.persistence.Entity;
 import javax.persistence.FetchType;
-import javax.persistence.GeneratedValue;
-import javax.persistence.GenerationType;
-import javax.persistence.Id;
 import javax.persistence.JoinColumn;
 import javax.persistence.ManyToOne;
 
-import lombok.Data;
+import com.dojomanager.data.entities.AbstractEntity;
+
+import lombok.Getter;
+import lombok.Setter;
 
 @Entity
-@Data
-public class Dojo {
-    @Id
-    @GeneratedValue(strategy = GenerationType.AUTO)
-    private Integer id;
-
-    @ManyToOne(targetEntity = DojoOwner.class, fetch = FetchType.LAZY)
-    // @JoinColumn(name="ownerId")
+public class Dojo extends AbstractEntity{
+    
+    @Getter @Setter
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "owner_id", nullable = false, updatable = false)
     private DojoOwner owner;
 
+    @Getter @Setter
     private String name;
+
+    @Getter @Setter
     private String website;
 
     // TODO
     // private Member leadInstructor;
     // private Address address;
-
-    @Override
-    public boolean equals(Object o) {
-        if (this == o) return true;
-        if (!(o instanceof Dojo )) return false;
-        return id != null && id.equals(((Dojo) o).getId());
-    }
 }

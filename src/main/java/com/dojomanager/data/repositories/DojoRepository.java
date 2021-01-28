@@ -1,9 +1,9 @@
 package com.dojomanager.data.repositories;
 
 import com.dojomanager.data.entities.dojo.Dojo;
-import org.springframework.data.jpa.repository.JpaRepository;
-import org.springframework.data.repository.CrudRepository;
 
-public interface DojoRepository extends CrudRepository<Dojo, Integer> {
+import org.springframework.data.jpa.repository.JpaRepository;
+
+public interface DojoRepository extends JpaRepository<Dojo, Long> {
     Dojo findByName(String name);
 }
