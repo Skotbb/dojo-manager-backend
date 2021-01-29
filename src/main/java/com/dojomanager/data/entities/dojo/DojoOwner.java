@@ -8,6 +8,7 @@ import javax.persistence.CascadeType;
 import javax.persistence.Column;
 import javax.persistence.Entity;
 import javax.persistence.OneToMany;
+import javax.persistence.Table;
 
 import com.dojomanager.data.entities.AbstractEntity;
 import com.fasterxml.jackson.annotation.JsonIgnore;
@@ -18,6 +19,7 @@ import lombok.Setter;
 
 @Entity
 @NoArgsConstructor
+@Table(name = "dojo_owner")
 public class DojoOwner extends AbstractEntity{
     @JsonIgnore
     @OneToMany(cascade = CascadeType.PERSIST, orphanRemoval = true, mappedBy = "owner")

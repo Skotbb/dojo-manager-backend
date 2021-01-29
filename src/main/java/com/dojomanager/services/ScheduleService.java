@@ -2,8 +2,7 @@ package com.dojomanager.services;
 
 import com.dojomanager.data.entities.schedule.DailySchedule;
 import com.dojomanager.data.entities.schedule.WeeklySchedule;
-import com.dojomanager.data.repositories.DailyScheduleRepository;
-import com.dojomanager.data.repositories.WeeklyScheduleRepository;
+import com.dojomanager.data.repositories.schedule.*;
 
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;

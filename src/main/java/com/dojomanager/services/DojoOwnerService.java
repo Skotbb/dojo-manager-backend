@@ -7,7 +7,7 @@ import java.util.Set;
 
 import com.dojomanager.data.entities.dojo.Dojo;
 import com.dojomanager.data.entities.dojo.DojoOwner;
-import com.dojomanager.data.repositories.DojoOwnerRepository;
+import com.dojomanager.data.repositories.dojo.*;
 import com.google.common.collect.Lists;
 
 import org.slf4j.Logger;
@@ -41,7 +41,7 @@ public class DojoOwnerService {
             return optionalOwner.get();
         }
         else {
-            logger.warn("Could not find the Owner by the ID=" + id);
+            logger.warn("Could not find the Owner by the ID=%s", id);
             return new DojoOwner();
         }
     }

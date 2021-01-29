@@ -1,4 +1,4 @@
-package com.dojomanager.data.repositories;
+package com.dojomanager.data.repositories.dojo;
 
 import com.dojomanager.data.entities.dojo.DojoOwner;
 

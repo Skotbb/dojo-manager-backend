@@ -1,4 +1,4 @@
-package com.dojomanager.data.repositories;
+package com.dojomanager.data.repositories.schedule;
 
 import com.dojomanager.data.entities.schedule.DailySchedule;
 
