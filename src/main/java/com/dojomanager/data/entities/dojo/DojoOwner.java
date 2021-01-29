@@ -13,6 +13,7 @@ import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
 import jakarta.persistence.JoinColumn;
 import jakarta.persistence.OneToMany;
+import jakarta.persistence.Table;
 
 import com.dojomanager.data.entities.AbstractEntity;
 import com.fasterxml.jackson.annotation.JsonIgnore;
@@ -23,6 +24,7 @@ import lombok.Setter;
 
 @Entity
 @NoArgsConstructor
+@Table(name = "dojo_owner")
 public class DojoOwner extends AbstractEntity{
     @JsonIgnore
     @OneToMany(cascade = CascadeType.PERSIST, orphanRemoval = true, mappedBy = "owner")

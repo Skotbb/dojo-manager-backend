@@ -1,4 +1,4 @@
-package com.dojomanager.data.repositories;
+package com.dojomanager.data.repositories.rank;
 
 import com.dojomanager.data.entities.rank.BeltColor;
 

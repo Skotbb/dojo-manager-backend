@@ -1,7 +1,6 @@
 package com.dojomanager.data.entities.rank;
 
 import javax.persistence.Entity;
-import javax.persistence.JoinColumn;
 import javax.persistence.ManyToOne;
 
 import com.dojomanager.data.entities.AbstractEntity;
@@ -22,4 +21,10 @@ public class RankName extends AbstractEntity{
     @Setter @Getter
     @ManyToOne(optional = false)
     private Dojo dojo;
+
+
+    public RankName(String name, Dojo dojo) {
+        this.name = name;
+        this.dojo = dojo;
+    }
 }

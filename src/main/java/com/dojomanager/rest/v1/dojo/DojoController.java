@@ -67,7 +67,7 @@ public class DojoController {
         rankLevel = rankService.saveRankLevel(rankLevel);
 
         BeltColor belt = new BeltColor("white", "none", null, rankLevel);
-        belt = rankService.saveBeltColor(belt);
+        rankService.saveBeltColor(belt);
         
         Dojo dojo1 = new Dojo();
         dojo1.setName("KobraKai");

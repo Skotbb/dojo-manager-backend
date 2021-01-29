@@ -1,12 +1,12 @@
 package com.dojomanager.services;
 
+import java.util.List;
 import java.util.Optional;
 import java.util.Set;
 
 import com.dojomanager.data.entities.dojo.Dojo;
 import com.dojomanager.data.entities.dojo.DojoOwner;
-import com.dojomanager.data.repositories.DojoOwnerRepository;
-import com.dojomanager.data.repositories.DojoRepository;
+import com.dojomanager.data.repositories.dojo.*;
 import com.google.common.collect.Sets;
 
 import org.slf4j.Logger;
@@ -39,6 +39,9 @@ public class DojoService {
     }
 
     public DojoOwner addDojoToOwner(Dojo dojo, DojoOwner owner) {
+        if(owner.getId() == null) {
+            ownerRepo.save(owner);
+        }
         owner.addDojo(dojo);
         
         dojoRepo.save(dojo);
@@ -55,8 +58,12 @@ public class DojoService {
             return dojoOption.get();
         }
         else {
-            logger.warn("Could not find Dojo with id="+id);
+            logger.warn("Could not find Dojo with id=%s", id);
             return new Dojo();
         }         
+    }
+
+    public List<Dojo> getDojosForOwner(DojoOwner owner) {
+        return dojoRepo.findByOwner(owner);
     }
 }
