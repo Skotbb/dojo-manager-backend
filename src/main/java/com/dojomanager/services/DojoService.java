@@ -21,6 +21,8 @@ public class DojoService {
     
     @Autowired
     private DojoOwnerRepository ownerRepo;
+    @Autowired
+    private DojoOwnerService ownerService;
     
     private Logger logger = LoggerFactory.getLogger(DojoService.class);
 
@@ -40,12 +42,12 @@ public class DojoService {
 
     public DojoOwner addDojoToOwner(Dojo dojo, DojoOwner owner) {
         if(owner.getId() == null) {
-            ownerRepo.save(owner);
+            ownerService.saveDojoOwner(owner);
         }
         owner.addDojo(dojo);
         
-        dojoRepo.save(dojo);
-        return ownerRepo.save(owner);
+        dojoRepo.saveAndFlush(dojo);
+        return ownerService.saveDojoOwner(owner);
     }
 
     public boolean isNameAvailable(String name) {

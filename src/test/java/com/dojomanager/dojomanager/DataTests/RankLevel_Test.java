@@ -30,9 +30,24 @@ public class RankLevel_Test extends AbstractTest{
     private RankLevel TEST_LEVEL;
     private BeltColor TEST_COLOR;
 
-    @BeforeEach
-    public void setup() {
-        saveTestItems();
+    // @BeforeEach
+    // public void setup() {
+    //     saveTestItems();
+    // }
+
+    private void saveTestItems() {
+        TEST_OWNER = new DojoOwner("firstName", "lastName", "email", "password");
+        TEST_DOJO = new Dojo("test dojo", "www.test.com");
+        dojoService.addDojoToOwner(TEST_DOJO, TEST_OWNER);
+
+        TEST_NAME = new RankName("Kyu", TEST_DOJO);
+        rankService.saveRankName(TEST_NAME);
+
+        TEST_LEVEL = new RankLevel(0, 10, 150, TEST_NAME);
+        rankService.saveRankLevel(TEST_LEVEL);
+
+        TEST_COLOR = new BeltColor("white", "", 0, TEST_LEVEL);
+        rankService.saveBeltColor(TEST_COLOR);
     }
 
     @Test
@@ -65,20 +80,5 @@ public class RankLevel_Test extends AbstractTest{
         rankService.saveRankSetting(setting2);
 
         assertEquals(2, rankService.getRankSettingsByDojo(TEST_DOJO).size(), "The Dojo has two Rank Settings.");
-    }
-
-    private void saveTestItems() {
-        TEST_OWNER = new DojoOwner("firstName", "lastName", "email", "password");
-        TEST_DOJO = new Dojo("test dojo", "www.test.com");
-        dojoService.addDojoToOwner(TEST_DOJO, TEST_OWNER);
-
-        TEST_NAME = new RankName("Kyu", TEST_DOJO);
-        rankService.saveRankName(TEST_NAME);
-
-        TEST_LEVEL = new RankLevel(0, 10, 150, TEST_NAME);
-        rankService.saveRankLevel(TEST_LEVEL);
-
-        TEST_COLOR = new BeltColor("white", "", 0, TEST_LEVEL);
-        rankService.saveBeltColor(TEST_COLOR);
-    }
+    }    
 }

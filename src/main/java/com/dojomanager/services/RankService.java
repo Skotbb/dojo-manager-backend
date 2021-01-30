@@ -6,6 +6,7 @@ import java.util.Optional;
 
 import com.dojomanager.data.entities.dojo.Dojo;
 import com.dojomanager.data.entities.rank.BeltColor;
+import com.dojomanager.data.entities.rank.StudentRank;
 import com.dojomanager.data.entities.rank.RankLevel;
 import com.dojomanager.data.entities.rank.RankName;
 import com.dojomanager.data.entities.rank.RankSetting;
@@ -25,6 +26,8 @@ public class RankService {
     BeltColorRepository beltRepo;
     @Autowired
     RankSettingRepository settingRepo;
+    @Autowired
+    RankRepository rankRepo;
 
     public RankName saveRankName(RankName rank) {
         return rankNameRepo.save(rank);
@@ -40,6 +43,10 @@ public class RankService {
 
     public RankSetting saveRankSetting(RankSetting setting) {
         return settingRepo.save(setting);
+    }
+
+    public StudentRank saveRank(StudentRank rank) {
+        return rankRepo.save(rank);
     }
 
     public List<RankSetting> getRankSettingsByDojo(Dojo dojo) {
