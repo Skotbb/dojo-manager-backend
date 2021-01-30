@@ -44,12 +44,12 @@ public class DojoOwner_Test extends AbstractTest{
 
     @Test
     public void saveDojoOwner_addDojos() {
-        DojoOwner savedOwner = ownerService.saveDojoOwner(TEST_OWNER);
+        /*DojoOwner savedOwner = */ownerService.saveDojoOwner(TEST_OWNER);
 
-        dojoService.addDojoToOwner(TEST_DOJO1, savedOwner);
-        dojoService.addDojoToOwner(TEST_DOJO2, savedOwner);
+        dojoService.addDojoToOwner(TEST_DOJO1, TEST_OWNER);
+        dojoService.addDojoToOwner(TEST_DOJO2, TEST_OWNER);
 
-        List<Dojo> dojos = dojoService.getDojosForOwner(savedOwner);
+        List<Dojo> dojos = dojoService.getDojosForOwner(TEST_OWNER);
 
         assertNotNull(dojos);
         assertEquals(2, dojos.size(), "Dojo size should be 2!");

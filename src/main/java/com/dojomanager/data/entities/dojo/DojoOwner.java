@@ -5,12 +5,11 @@ import java.util.HashSet;
 import java.util.Set;
 
 import javax.persistence.CascadeType;
-import javax.persistence.Column;
 import javax.persistence.Entity;
 import javax.persistence.OneToMany;
 import javax.persistence.Table;
 
-import com.dojomanager.data.entities.AbstractEntity;
+import com.dojomanager.data.entities.people.Person;
 import com.fasterxml.jackson.annotation.JsonIgnore;
 
 import lombok.Getter;
@@ -20,29 +19,16 @@ import lombok.Setter;
 @Entity
 @NoArgsConstructor
 @Table(name = "dojo_owner")
-public class DojoOwner extends AbstractEntity{
+public class DojoOwner extends Person{
     @JsonIgnore
-    @OneToMany(cascade = CascadeType.PERSIST, orphanRemoval = true, mappedBy = "owner")
-    // @JoinColumn(name = "owner_id")
+    @OneToMany(cascade = CascadeType.ALL, orphanRemoval = true, mappedBy = "owner")
     private Set<Dojo> managedDojos = new HashSet<>();
-    
-    @Getter @Setter
-    private String firstName;
-
-    @Getter @Setter
-    private String lastName;
-
-    @Getter @Setter
-    @Column(unique = true)
-    private String email;
 
     @Getter @Setter
     private String password;
 
     public DojoOwner(String firstName, String lastName, String email, String password) {
-        this.firstName = firstName;
-        this.lastName = lastName;
-        this.email = email;
+        super(firstName, lastName, email);
         this.password = password;
     }
 

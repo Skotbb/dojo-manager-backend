@@ -12,6 +12,4 @@ import org.springframework.test.context.junit.jupiter.SpringExtension;
 @ExtendWith(SpringExtension.class)
 @SpringBootTest
 @AutoConfigureMockMvc
-public abstract class AbstractTest {
-    
-}
+public abstract class AbstractTest {}
