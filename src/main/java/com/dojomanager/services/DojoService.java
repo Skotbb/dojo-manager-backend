@@ -20,8 +20,6 @@ public class DojoService {
     private DojoRepository dojoRepo;
     
     @Autowired
-    private DojoOwnerRepository ownerRepo;
-    @Autowired
     private DojoOwnerService ownerService;
     
     private Logger logger = LoggerFactory.getLogger(DojoService.class);

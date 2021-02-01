@@ -31,19 +31,6 @@ public class DojoController {
 
     private Logger logger = LoggerFactory.getLogger(DojoController.class);
 
-    // @PostMapping(value="/add")
-    // public @ResponseBody DojoOwner addDojoOwner(@RequestParam String firstName, 
-    // @RequestParam String lastName, @RequestParam String email, @RequestParam String password) {
-        
-    //     DojoOwner owner = new DojoOwner();
-    //     owner.setFirstName(firstName);
-    //     owner.setLastName(lastName);
-    //     owner.setEmail(email);
-    //     owner.setPassword(password);
-        
-    //     return ownerRepo.save(owner);
-    // }
-    
     @GetMapping(value="/test/add")
     public @ResponseBody DojoOwner addDojoOwner() {
         
@@ -85,10 +72,5 @@ public class DojoController {
             logger.error("There was an issue saving the DojoOwner", e);
             return new DojoOwner();
         }
-    }
-
-    @GetMapping(path="/getAll")
-    public @ResponseBody Iterable<DojoOwner> getAllOwners() {
-        return ownerService.getAllOwners();
     }
 }

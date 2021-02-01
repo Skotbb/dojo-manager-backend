@@ -1,6 +1,5 @@
 package com.dojomanager.data.entities.people;
 
-import javax.persistence.CascadeType;
 import javax.persistence.Entity;
 import javax.persistence.FetchType;
 import javax.persistence.JoinColumn;

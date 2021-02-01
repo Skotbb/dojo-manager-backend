@@ -10,10 +10,10 @@ import com.dojomanager.data.entities.rank.RankLevel;
 import com.dojomanager.data.entities.rank.RankName;
 import com.dojomanager.data.entities.rank.RankSetting;
 import com.dojomanager.dojomanager.AbstractTest;
+import com.dojomanager.services.DojoOwnerService;
 import com.dojomanager.services.DojoService;
 import com.dojomanager.services.RankService;
 
-import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 
@@ -23,6 +23,9 @@ public class RankLevel_Test extends AbstractTest{
     
     @Autowired
     private DojoService dojoService;
+
+    @Autowired
+    private DojoOwnerService ownerService;
 
     private Dojo TEST_DOJO;
     private DojoOwner TEST_OWNER;
@@ -36,9 +39,14 @@ public class RankLevel_Test extends AbstractTest{
     // }
 
     private void saveTestItems() {
-        TEST_OWNER = new DojoOwner("firstName", "lastName", "email", "password");
-        TEST_DOJO = new Dojo("test dojo", "www.test.com");
-        dojoService.addDojoToOwner(TEST_DOJO, TEST_OWNER);
+        TEST_OWNER = ownerService.getOwnerByEmail("email");
+
+        if(TEST_OWNER == null || !TEST_OWNER.getEmail().equals("email")) {
+            TEST_OWNER = new DojoOwner("firstName", "lastName", "email", "password");
+            TEST_DOJO = new Dojo("test dojo", "www.test.com");
+            dojoService.addDojoToOwner(TEST_DOJO, TEST_OWNER);
+        }
+        
 
         TEST_NAME = new RankName("Kyu", TEST_DOJO);
         rankService.saveRankName(TEST_NAME);
