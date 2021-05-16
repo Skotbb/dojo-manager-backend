@@ -13,6 +13,7 @@ import com.google.common.collect.Lists;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.security.core.userdetails.UsernameNotFoundException;
 import org.springframework.stereotype.Service;
 
 @Service
@@ -31,8 +32,13 @@ public class DojoOwnerService {
         return ownerRepo.saveAndFlush(owner);
     }
 
-    public DojoOwner getOwnerByEmail(String email) {
-        return ownerRepo.findByEmail(email.toLowerCase());
+    public DojoOwner getOwnerByEmail(String email) throws UsernameNotFoundException{
+        return ownerRepo.findByEmail(email.toLowerCase())
+        .orElseThrow(() -> new UsernameNotFoundException("Owner not found with email: " + email));
+    }
+
+    public boolean doesEmailExist(String email) {
+        return ownerRepo.existsByEmail(email);
     }
 
     public DojoOwner getOwnerById(Long id) {
