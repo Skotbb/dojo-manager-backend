@@ -2,6 +2,7 @@ package com.dojomanager.rest.v1.authorization;
 
 import javax.validation.Valid;
 
+import com.dojomanager.data.dto.MessageResponse;
 import com.dojomanager.data.dto.authorization.JwtResponse;
 import com.dojomanager.data.entities.dojo.DojoOwner;
 import com.dojomanager.data.forms.LoginForm;
@@ -28,7 +29,7 @@ import org.springframework.web.bind.annotation.RestController;
 @RestController
 @RequestMapping("/api/auth")
 public class AuthorizationController {
-    
+
     @Autowired
     AuthenticationManager authenticationManager;
 
@@ -43,27 +44,39 @@ public class AuthorizationController {
 
     @PostMapping("/login")
     public ResponseEntity<?> authenticateUser(@Valid @RequestBody LoginForm loginRequest) {
-        Authentication authentication = authenticationManager.authenticate(new UsernamePasswordAuthenticationToken(loginRequest.getEmail(), loginRequest.getPassword()));
-        
+        try{
+            return ResponseEntity.ok(authenticateUser(loginRequest.getEmail(), loginRequest.getPassword()));
+        } catch(Exception e) {
+            MessageResponse messageResponse = new MessageResponse();
+            messageResponse.setError(e.getMessage());
+            return new ResponseEntity<>(messageResponse, HttpStatus.BAD_REQUEST);
+        }
+    }
+
+    @PostMapping("/signup")
+    public ResponseEntity<?> registerUser(@Valid @RequestBody SignupForm signupRequest) {
+        if (ownerService.doesEmailExist(signupRequest.getEmail())) {
+            return new ResponseEntity<>(new MessageResponse("Error: Email already exists"), HttpStatus.BAD_REQUEST);
+        }
+
+        DojoOwner owner = new DojoOwner(signupRequest.getFirstName(), signupRequest.getLastName(),
+                signupRequest.getEmail(), encoder.encode(signupRequest.getPassword()));
+
+        ownerService.saveDojoOwner(owner);
+
+        JwtResponse authResponse = authenticateUser(signupRequest.getEmail(), signupRequest.getPassword());
+        return ResponseEntity.ok(authResponse);
+    }
+
+    private JwtResponse authenticateUser(final String email, final String password) {
+        Authentication authentication = authenticationManager
+                .authenticate(new UsernamePasswordAuthenticationToken(email, password));
+
         SecurityContextHolder.getContext().setAuthentication(authentication);
 
         String jwt = jwtProvider.generateJwtToken(authentication);
         UserDetails userDetails = (UserDetails) authentication.getPrincipal();
 
-        return ResponseEntity.ok(new JwtResponse(jwt, userDetails.getUsername()));
-    }
-
-    @PostMapping("/signup")
-    public ResponseEntity<?> registerUser(@Valid @RequestBody SignupForm signupRequest) {
-        if(ownerService.doesEmailExist(signupRequest.getEmail())) {
-            return new ResponseEntity<>("Error: Email already exists", HttpStatus.BAD_REQUEST);
-        }
-
-        DojoOwner owner = new DojoOwner(signupRequest.getFirstName(), 
-        signupRequest.getLastName(), signupRequest.getEmail(), encoder.encode(signupRequest.getPassword()));
-
-        ownerService.saveDojoOwner(owner);
-
-        return new ResponseEntity<>("User registered successfully!", HttpStatus.OK);
+        return new JwtResponse(jwt, userDetails.getUsername());
     }
 }
