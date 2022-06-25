@@ -1,0 +1,15 @@
+volumes:
+  data:
+
+services:
+  mysql:
+    image: mysql:latest
+    environment:
+      - MYSQL_ROOT_PASSWORD=mysqlpw
+      - MYSQL_USER=dojoAppDev
+      - MYSQL_PASSWORD=Password1@
+      - MYSQL_DATABASE=dojo_manager_dev
+    ports:
+      - 3306:3306
+    volumes:
+      - data:/var/lib/mysql
