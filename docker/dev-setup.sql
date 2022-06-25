@@ -1,0 +1,1 @@
+CREATE DATABASE dojo_manager_dev
