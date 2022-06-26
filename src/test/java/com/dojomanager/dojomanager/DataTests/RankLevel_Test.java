@@ -39,7 +39,7 @@ public class RankLevel_Test extends AbstractTest{
     // }
 
     private void saveTestItems() {
-        TEST_OWNER = ownerService.getOwnerByEmail("email");
+        TEST_OWNER = ownerService.getOwnerByEmail("email").get();
 
         if(TEST_OWNER == null || !TEST_OWNER.getEmail().equals("email")) {
             TEST_OWNER = new DojoOwner("firstName", "lastName", "email", "password");
