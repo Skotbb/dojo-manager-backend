@@ -26,15 +26,14 @@ public class DojoOwnerService {
 
     public DojoOwner saveDojoOwner(DojoOwner owner) {
         if(ownerRepo.existsByEmail(owner.getEmail())) {
-            DojoOwner dbOwner = getOwnerByEmail(owner.getEmail());
-            owner.setId(dbOwner.getId());            
+            Optional<DojoOwner> dbOwner = getOwnerByEmail(owner.getEmail());
+            dbOwner.ifPresent(thisOwner -> owner.setId(thisOwner.getId()) );            
         }
         return ownerRepo.saveAndFlush(owner);
     }
 
-    public DojoOwner getOwnerByEmail(String email) throws UsernameNotFoundException{
-        return ownerRepo.findByEmail(email.toLowerCase())
-        .orElseThrow(() -> new UsernameNotFoundException("Owner not found with email: " + email));
+    public Optional<DojoOwner> getOwnerByEmail(String email) throws UsernameNotFoundException{
+        return ownerRepo.findByEmail(email.toLowerCase());
     }
 
     public boolean doesEmailExist(String email) {
