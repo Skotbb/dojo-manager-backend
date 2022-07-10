@@ -25,14 +25,9 @@ public class RankSetting extends AbstractEntity{
     @ManyToOne
     private RankLevel rankLevel;
     
-    @Getter @Setter
-    @ManyToOne
-    private BeltColor beltColor;
-
-    public RankSetting(Dojo dojo, RankName rankName, RankLevel rankLevel, BeltColor beltColor) {
+    public RankSetting(Dojo dojo, RankName rankName, RankLevel rankLevel) {
         this.dojo = dojo;
         this.rankName = rankName;
         this.rankLevel = rankLevel;
-        this.beltColor = beltColor;
     }
 }

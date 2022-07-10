@@ -25,6 +25,7 @@ import lombok.Setter;
 @Table(name = "dojo")
 public class Dojo extends AbstractEntity{
     
+    @JsonIgnore
     @Getter @Setter
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "owner_id", nullable = false, updatable = false)

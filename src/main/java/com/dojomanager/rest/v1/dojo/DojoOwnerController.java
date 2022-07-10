@@ -1,12 +1,15 @@
 package com.dojomanager.rest.v1.dojo;
 
+import com.dojomanager.data.dto.dojo.NewDojoDto;
 import com.dojomanager.data.dto.dojo.OwnerDTO;
 import com.dojomanager.data.entities.dojo.Dojo;
 import com.dojomanager.data.entities.dojo.DojoOwner;
+import com.dojomanager.data.entities.rank.RankSetting;
 import com.dojomanager.services.DojoOwnerService;
+import com.dojomanager.services.DojoService;
+import com.dojomanager.services.RankService;
 
-import java.util.Collection;
-import java.util.Collections;
+import java.util.List;
 import java.util.Optional;
 
 import org.slf4j.Logger;
@@ -27,17 +30,57 @@ import org.springframework.web.bind.annotation.RestController;
 public class DojoOwnerController {
     @Autowired
     private DojoOwnerService ownerService;
+    @Autowired
+    private DojoService dojoService;
+    @Autowired
+    private RankService rankService;
 
     private Logger logger = LoggerFactory.getLogger(DojoOwnerController.class);
 
     @GetMapping(value = "/{userId}")
-    public @ResponseBody Collection<Dojo> getDojos(@PathVariable(value = "userId") String email) {
+    public @ResponseBody DojoOwner getDojos(@PathVariable(value = "userId") String email) {
         Optional<DojoOwner> owner = ownerService.getOwnerByEmail(email);
         if(owner.isPresent()) {
-            return owner.get().getManagedDojos();
+            return owner.get();
         } else {
             logger.error("Could not find an owner with the Email %s", email);
-            return Collections.EMPTY_SET;
+            return null;
+        }
+    }
+    
+    @PostMapping(value = "/{userId}")
+    public @ResponseBody Dojo getDojos(@PathVariable(value = "userId") String email, @RequestBody Dojo newDojo) {
+        Optional<DojoOwner> owner = ownerService.getOwnerByEmail(email);
+        if(owner.isPresent()) {
+            final Dojo createdDojo = dojoService.saveDojo(newDojo);
+            dojoService.addDojoToOwner(createdDojo, owner.get());
+
+            return createdDojo;
+        } else {
+            logger.error("Could not find an owner with the Email %s", email);
+            return null;
+        }
+    }
+
+    @PostMapping(value = "/{userId}/dojo")
+    public @ResponseBody Dojo addNewDojo(@PathVariable(value = "userId") String email, @RequestBody NewDojoDto newDojo) {
+        Optional<DojoOwner> optOwner = ownerService.getOwnerByEmail(email);
+
+        if(optOwner.isPresent()) {
+            Optional<Dojo> createdDojo = dojoService.createDojoForOwner(newDojo.getDojo(), optOwner.get());
+            
+            if(createdDojo.isPresent()) {
+                List<RankSetting> rankSettings = rankService.createRankSettingsForDojo(createdDojo.get(), newDojo.getRankSettings());
+                return createdDojo.get();
+            }
+            else {
+                logger.error("Was not able to create a Dojo.");
+                return null;
+            }
+        } 
+        else {
+            logger.error("Could not find owner with Email: ", email);
+            return null;
         }
     }
 

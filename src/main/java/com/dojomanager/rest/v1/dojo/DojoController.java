@@ -2,7 +2,6 @@ package com.dojomanager.rest.v1.dojo;
 
 import com.dojomanager.data.entities.dojo.Dojo;
 import com.dojomanager.data.entities.dojo.DojoOwner;
-import com.dojomanager.data.entities.rank.BeltColor;
 import com.dojomanager.data.entities.rank.RankLevel;
 import com.dojomanager.data.entities.rank.RankName;
 import com.dojomanager.services.DojoOwnerService;
@@ -47,15 +46,11 @@ public class DojoController {
         dojoService.addDojoToOwner(dojo, owner);
         RankName rank = new RankName();
         rank.setName("kyu");
-        rank.setDojo(dojo);
         rank = rankService.saveRankName(rank);
 
-        RankLevel rankLevel = new RankLevel(0, 10, 40, rank);
+        RankLevel rankLevel = new RankLevel(0, 10, 40, "White", "None", 0);
         rankLevel = rankService.saveRankLevel(rankLevel);
 
-        BeltColor belt = new BeltColor("white", "none", null, rankLevel);
-        rankService.saveBeltColor(belt);
-        
         Dojo dojo1 = new Dojo();
         dojo1.setName("KobraKai");
         dojo1.setWebsite("www.kobra-kai.com");

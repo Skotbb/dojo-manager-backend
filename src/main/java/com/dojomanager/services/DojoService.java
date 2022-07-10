@@ -4,6 +4,7 @@ import java.util.List;
 import java.util.Optional;
 import java.util.Set;
 
+import com.dojomanager.data.dto.dojo.DojoDto;
 import com.dojomanager.data.entities.dojo.Dojo;
 import com.dojomanager.data.entities.dojo.DojoOwner;
 import com.dojomanager.data.repositories.dojo.*;
@@ -18,14 +19,14 @@ import org.springframework.stereotype.Service;
 public class DojoService {
     @Autowired
     private DojoRepository dojoRepo;
-    
+
     @Autowired
     private DojoOwnerService ownerService;
-    
+
     private Logger logger = LoggerFactory.getLogger(DojoService.class);
 
     public Dojo saveDojo(Dojo dojo) {
-        try {            
+        try {
             dojo = dojoRepo.saveAndFlush(dojo);
             return dojo;
         } catch (Exception e) {
@@ -38,14 +39,31 @@ public class DojoService {
         return Sets.newHashSet(dojoRepo.saveAll(dojos));
     }
 
+    // TODO Pull into OwnerService
     public DojoOwner addDojoToOwner(Dojo dojo, DojoOwner owner) {
-        if(owner.getId() == null) {
+        if (owner.getId() == null) {
             ownerService.saveDojoOwner(owner);
         }
         owner.addDojo(dojo);
-        
+
         dojoRepo.saveAndFlush(dojo);
         return ownerService.saveDojoOwner(owner);
+    }
+
+    public Optional<Dojo> createDojoForOwner(DojoDto dojoDto, DojoOwner owner) {
+        Dojo newDojo = new Dojo(dojoDto.getName(), dojoDto.getWebsite());
+
+        try {
+            // owner.addDojo(newDojo);
+            newDojo.setOwner(owner);
+            dojoRepo.save(newDojo);
+            // ownerService.saveDojoOwner(owner);
+
+            return Optional.of(newDojo);
+        } catch (Exception e) {
+            logger.error("Could not save item", e);
+            return Optional.empty();
+        }
     }
 
     public boolean isNameAvailable(String name) {
@@ -54,13 +72,12 @@ public class DojoService {
 
     public Dojo getDojoById(Long id) {
         Optional<Dojo> dojoOption = dojoRepo.findById(id);
-        if(dojoOption.isPresent()) {
+        if (dojoOption.isPresent()) {
             return dojoOption.get();
-        }
-        else {
+        } else {
             logger.warn("Could not find Dojo with id=%s", id);
             return new Dojo();
-        }         
+        }
     }
 
     public List<Dojo> getDojosForOwner(DojoOwner owner) {

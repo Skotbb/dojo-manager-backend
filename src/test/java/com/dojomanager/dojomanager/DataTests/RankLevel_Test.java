@@ -5,7 +5,6 @@ import static org.junit.jupiter.api.Assertions.assertNotNull;
 
 import com.dojomanager.data.entities.dojo.Dojo;
 import com.dojomanager.data.entities.dojo.DojoOwner;
-import com.dojomanager.data.entities.rank.BeltColor;
 import com.dojomanager.data.entities.rank.RankLevel;
 import com.dojomanager.data.entities.rank.RankName;
 import com.dojomanager.data.entities.rank.RankSetting;
@@ -31,7 +30,6 @@ public class RankLevel_Test extends AbstractTest{
     private DojoOwner TEST_OWNER;
     private RankName TEST_NAME;
     private RankLevel TEST_LEVEL;
-    private BeltColor TEST_COLOR;
 
     // @BeforeEach
     // public void setup() {
@@ -39,34 +37,35 @@ public class RankLevel_Test extends AbstractTest{
     // }
 
     private void saveTestItems() {
-        TEST_OWNER = ownerService.getOwnerByEmail("email").get();
-
-        if(TEST_OWNER == null || !TEST_OWNER.getEmail().equals("email")) {
+        ownerService.getOwnerByEmail("email").ifPresentOrElse((owner) -> {
+            // Owner exists. Hurray
+        }, () -> {
             TEST_OWNER = new DojoOwner("firstName", "lastName", "email", "password");
             TEST_DOJO = new Dojo("test dojo", "www.test.com");
             dojoService.addDojoToOwner(TEST_DOJO, TEST_OWNER);
-        }
-        
+        });
 
-        TEST_NAME = new RankName("Kyu", TEST_DOJO);
+        // if(TEST_OWNER == null || !TEST_OWNER.getEmail().equals("email")) {
+            
+        // }
+
+        TEST_NAME = new RankName("Kyu");
         rankService.saveRankName(TEST_NAME);
 
-        TEST_LEVEL = new RankLevel(0, 10, 150, TEST_NAME);
+        TEST_LEVEL = new RankLevel(0, 10, 150, "White", "", 0);
         rankService.saveRankLevel(TEST_LEVEL);
 
-        TEST_COLOR = new BeltColor("white", "", 0, TEST_LEVEL);
-        rankService.saveBeltColor(TEST_COLOR);
     }
 
-    @Test
-    public void rank_addToDojo() {
-        assertEquals(TEST_DOJO, TEST_LEVEL.getRankName().getDojo(), "The RankLevel is attached to the correct Dojo.");
-        assertEquals(TEST_NAME, TEST_COLOR.getRankLevel().getRankName(), "The BeltColor is attached to the correct RankName.");
-    }
+    // @Test
+    // public void rank_addToDojo() {
+    //     assertEquals(TEST_DOJO, TEST_LEVEL.getRankName().getDojo(), "The RankLevel is attached to the correct Dojo.");
+    //     assertEquals(TEST_NAME, TEST_COLOR.getRankLevel().getRankName(), "The BeltColor is attached to the correct RankName.");
+    // }
 
     @Test
     public void rank_addToSetting() {
-        RankSetting setting = new RankSetting(TEST_DOJO, TEST_NAME, TEST_LEVEL, TEST_COLOR);
+        RankSetting setting = new RankSetting(TEST_DOJO, TEST_NAME, TEST_LEVEL);
         rankService.saveRankSetting(setting);
 
         assertNotNull(setting.getId(), "Setting saved and has an ID");
@@ -74,15 +73,14 @@ public class RankLevel_Test extends AbstractTest{
 
     @Test
     public void rank_getSettingsForDojo() {
-        RankSetting setting1 = new RankSetting(TEST_DOJO, TEST_NAME, TEST_LEVEL, TEST_COLOR);
+        saveTestItems();
 
-        RankLevel ninthKyu = new RankLevel(1, 9, 150, TEST_NAME);
+        RankSetting setting1 = new RankSetting(TEST_DOJO, TEST_NAME, TEST_LEVEL);
+
+        RankLevel ninthKyu = new RankLevel(1, 9, 150, "Blue", "", 0);
         rankService.saveRankLevel(ninthKyu);
 
-        BeltColor blueBelt = new BeltColor("blue", "", 0, ninthKyu);
-        rankService.saveBeltColor(blueBelt);
-
-        RankSetting setting2 = new RankSetting(TEST_DOJO, TEST_NAME, ninthKyu, blueBelt);
+        RankSetting setting2 = new RankSetting(TEST_DOJO, TEST_NAME, ninthKyu);
 
         rankService.saveRankSetting(setting1);
         rankService.saveRankSetting(setting2);

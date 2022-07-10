@@ -10,7 +10,6 @@ import javax.persistence.OneToMany;
 import javax.persistence.Table;
 
 import com.dojomanager.data.entities.people.Person;
-import com.fasterxml.jackson.annotation.JsonIgnore;
 
 import lombok.Getter;
 import lombok.NoArgsConstructor;
@@ -20,7 +19,7 @@ import lombok.Setter;
 @NoArgsConstructor
 @Table(name = "dojo_owner")
 public class DojoOwner extends Person{
-    @JsonIgnore
+    // @JsonIgnore
     @OneToMany(cascade = CascadeType.ALL, orphanRemoval = true, mappedBy = "owner")
     private Set<Dojo> managedDojos = new HashSet<>();
 

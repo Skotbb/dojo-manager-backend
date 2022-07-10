@@ -4,27 +4,22 @@ import javax.persistence.Entity;
 
 import com.dojomanager.data.entities.AbstractEntity;
 
-import lombok.Getter;
+import lombok.Data;
 import lombok.NoArgsConstructor;
-import lombok.Setter;
 
 @Entity
+@Data
 @NoArgsConstructor
 public class Address extends AbstractEntity {
     
-    @Getter @Setter
     private String addressLine1;
     
-    @Getter @Setter
     private String addressLine2;
 
-    @Getter @Setter
     private String city;
 
-    @Getter @Setter
     private String state;
 
-    @Getter @Setter
     private String zipCode;
 
 

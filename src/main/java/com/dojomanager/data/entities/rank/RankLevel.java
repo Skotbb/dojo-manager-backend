@@ -1,7 +1,6 @@
 package com.dojomanager.data.entities.rank;
 
 import javax.persistence.Entity;
-import javax.persistence.ManyToOne;
 
 import com.dojomanager.data.entities.AbstractEntity;
 
@@ -20,17 +19,27 @@ public class RankLevel extends AbstractEntity{
     private int number;
 
     @Getter @Setter
-    private int hoursRequired;
+    private double hoursRequired;
 
     @Getter @Setter
-    @ManyToOne(optional = false)
-    private RankName rankName;
+    private String beltColor;
+    
+    @Getter @Setter
+    private String stripeColor;
 
+    @Getter
+    private int stripeCount;
 
-    public RankLevel(int sortOrder, int number, int hoursRequired, RankName rankName) {
+    public void setStripeCount(Integer count) {
+        this.stripeCount = count != null ? count : 0;
+    }
+
+    public RankLevel(int sortOrder, int number, double hoursRequired, String beltColor, String stripeColor, int stripeCount) {
         this.sortOrder = sortOrder;
         this.number = number;
         this.hoursRequired = hoursRequired;
-        this.rankName = rankName;
+        this.beltColor = beltColor;
+        this.stripeColor = stripeColor;
+        this.stripeCount = stripeCount;
     }
 }
