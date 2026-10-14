@@ -7,7 +7,7 @@ import java.util.List;
 import java.util.Optional;
 import java.util.Set;
 
-import javax.persistence.EntityManager;
+import jakarta.persistence.EntityManager;
 
 import com.dojomanager.data.entities.dojo.Dojo;
 import com.dojomanager.data.entities.dojo.DojoOwner;
