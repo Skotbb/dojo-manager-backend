@@ -4,6 +4,9 @@ target/
 !**/src/main/**/target/
 !**/src/test/**/target/
 
+# Internal Hermes task worktrees — never tracked (repo hygiene task t_b22045f2)
+.worktrees/
+
 ### STS ###
 .apt_generated
 .classpath
