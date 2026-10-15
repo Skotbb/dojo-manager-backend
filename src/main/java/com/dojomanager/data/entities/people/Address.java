@@ -1,6 +1,6 @@
 package com.dojomanager.data.entities.people;
 
-import javax.persistence.Entity;
+import jakarta.persistence.Entity;
 
 import com.dojomanager.data.entities.AbstractEntity;
 

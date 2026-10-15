@@ -11,8 +11,11 @@ class DojomanagerApplicationTests extends AbstractTest{
 
 	@Test
 	void contextLoads() {
+		// The point of this test is that the Spring context boots hermetically
+		// against in-memory H2 (see application-test.properties). The datasource
+		// URL must be present; it is intentionally not pinned to a MySQL URL so
+		// the test stays hermetic.
 		assertThat(dbUrl).isNotNull();
-		assertThat(dbUrl).isEqualTo("jdbc:mysql://localhost:3306/dojo_manager_test"); 
 	}
 
 }

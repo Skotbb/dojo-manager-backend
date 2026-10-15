@@ -1,7 +1,7 @@
 package com.dojomanager.data.entities.people;
 
-import javax.persistence.Column;
-import javax.persistence.MappedSuperclass;
+import jakarta.persistence.Column;
+import jakarta.persistence.MappedSuperclass;
 
 import com.dojomanager.data.entities.AbstractEntity;
 

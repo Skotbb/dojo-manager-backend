@@ -14,6 +14,9 @@ import com.dojomanager.services.DojoOwnerService;
 import com.dojomanager.services.DojoService;
 import com.dojomanager.services.RankService;
 
+import java.util.UUID;
+
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 
@@ -33,19 +36,16 @@ public class RankLevel_Test extends AbstractTest{
     private RankLevel TEST_LEVEL;
     private BeltColor TEST_COLOR;
 
-    // @BeforeEach
-    // public void setup() {
-    //     saveTestItems();
-    // }
+    @BeforeEach
+    public void setup() {
+        saveTestItems();
+    }
 
     private void saveTestItems() {
-        TEST_OWNER = ownerService.getOwnerByEmail("email").get();
+        TEST_OWNER = new DojoOwner("firstName", "lastName", "email_" + UUID.randomUUID(), "password");
 
-        if(TEST_OWNER == null || !TEST_OWNER.getEmail().equals("email")) {
-            TEST_OWNER = new DojoOwner("firstName", "lastName", "email", "password");
-            TEST_DOJO = new Dojo("test dojo", "www.test.com");
-            dojoService.addDojoToOwner(TEST_DOJO, TEST_OWNER);
-        }
+        TEST_DOJO = new Dojo("test dojo", "www.test.com");
+        dojoService.addDojoToOwner(TEST_DOJO, TEST_OWNER);
         
 
         TEST_NAME = new RankName("Kyu", TEST_DOJO);

@@ -2,8 +2,8 @@ package com.dojomanager.data.entities.schedule;
 
 import java.time.LocalTime;
 
-import javax.persistence.Entity;
-import javax.persistence.ManyToOne;
+import jakarta.persistence.Entity;
+import jakarta.persistence.ManyToOne;
 
 import com.dojomanager.data.entities.AbstractEntity;
 

@@ -1,8 +1,8 @@
 package com.dojomanager.data.entities.rank;
 
-import javax.persistence.Entity;
-import javax.persistence.ManyToOne;
-import javax.persistence.OneToOne;
+import jakarta.persistence.Entity;
+import jakarta.persistence.ManyToOne;
+import jakarta.persistence.OneToOne;
 
 import com.dojomanager.data.entities.AbstractEntity;
 import com.dojomanager.data.entities.people.Student;

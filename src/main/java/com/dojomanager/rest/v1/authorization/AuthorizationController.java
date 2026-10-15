@@ -1,6 +1,6 @@
 package com.dojomanager.rest.v1.authorization;
 
-import javax.validation.Valid;
+import jakarta.validation.Valid;
 
 import com.dojomanager.data.dto.MessageResponse;
 import com.dojomanager.data.dto.authorization.JwtResponse;

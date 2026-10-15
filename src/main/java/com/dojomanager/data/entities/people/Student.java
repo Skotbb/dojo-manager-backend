@@ -1,10 +1,10 @@
 package com.dojomanager.data.entities.people;
 
-import javax.persistence.Entity;
-import javax.persistence.FetchType;
-import javax.persistence.JoinColumn;
-import javax.persistence.ManyToOne;
-import javax.persistence.OneToOne;
+import jakarta.persistence.Entity;
+import jakarta.persistence.FetchType;
+import jakarta.persistence.JoinColumn;
+import jakarta.persistence.ManyToOne;
+import jakarta.persistence.OneToOne;
 
 import com.dojomanager.data.entities.dojo.Dojo;
 import com.dojomanager.data.entities.rank.StudentRank;
