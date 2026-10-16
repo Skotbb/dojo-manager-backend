@@ -25,13 +25,7 @@ public class DojoService {
     private Logger logger = LoggerFactory.getLogger(DojoService.class);
 
     public Dojo saveDojo(Dojo dojo) {
-        try {            
-            dojo = dojoRepo.saveAndFlush(dojo);
-            return dojo;
-        } catch (Exception e) {
-            logger.error("Could not save Dojo " + dojo.getName(), e);
-            return dojo;
-        }
+        return dojoRepo.saveAndFlush(dojo);
     }
 
     public Set<Dojo> saveAll(Set<Dojo> dojos) {

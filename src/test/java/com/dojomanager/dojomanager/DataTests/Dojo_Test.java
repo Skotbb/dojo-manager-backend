@@ -35,9 +35,13 @@ public class Dojo_Test extends AbstractTest {
         Address address = new Address("21 Partidge St.", "Placeville", "FL", "32738");
         addressService.saveAddress(address);
 
-        Dojo testDojo= new Dojo("Kick dicks", "www.stopkickingthere.com", address);
-        dojoService.saveDojo(testDojo);
+        Dojo testDojo = new Dojo("Kick dicks", "www.stopkickingthere.com", address);
+        testDojo.setOwner(testOwner);
 
+        Dojo saved = dojoService.saveDojo(testDojo);
+
+        assertNotNull(saved, "saveDojo should return the persisted Dojo");
+        assertNotNull(saved.getId(), "A persisted Dojo must have a generated id");
         assertNotNull(testDojo.getAddress().getId());
     }
 }
