@@ -18,6 +18,9 @@ import lombok.Setter;
 public class Student extends Person{
     
     @Getter @Setter
+    private boolean active = true;
+
+    @Getter @Setter
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "dojo_id", nullable = false, updatable = false)
     private Dojo dojo;

@@ -36,6 +36,11 @@ public class OwnerPrincipal implements UserDetails{
     return new OwnerPrincipal(owner.getId(), owner.getEmail(), owner.getPassword());
     }
 
+    /** Identifier of the {@link DojoOwner} this principal was built from. */
+    public Long getId() {
+        return this.id;
+    }
+
     @Override
     public Collection<? extends GrantedAuthority> getAuthorities() {
         return this.authorities;
