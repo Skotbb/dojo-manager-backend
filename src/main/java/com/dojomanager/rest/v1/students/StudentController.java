@@ -2,9 +2,11 @@ package com.dojomanager.rest.v1.students;
 
 import java.util.List;
 
+import com.dojomanager.data.dto.attendance.AttendanceRecordDto;
 import com.dojomanager.data.dto.student.StudentDto;
 import com.dojomanager.data.forms.student.StudentRequestForm;
 import com.dojomanager.security.services.OwnerPrincipal;
+import com.dojomanager.services.AttendanceService;
 import com.dojomanager.services.StudentService;
 
 import jakarta.validation.Valid;
@@ -13,10 +15,10 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.CrossOrigin;
-import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -42,6 +44,8 @@ import lombok.RequiredArgsConstructor;
 public class StudentController {
 
     private final StudentService studentService;
+
+    private final AttendanceService attendanceService;
 
     @PostMapping
     public ResponseEntity<StudentDto> createStudent(
@@ -86,5 +90,12 @@ public class StudentController {
             @PathVariable("id") Long id) {
 
         return studentService.deactivateStudent(principal, id);
+    }
+
+    @GetMapping("/{id}/attendance")
+    public List<AttendanceRecordDto> getAttendanceHistory(
+            @AuthenticationPrincipal OwnerPrincipal principal,
+            @PathVariable("id") Long id) {
+        return attendanceService.findByStudent(principal, id);
     }
 }
