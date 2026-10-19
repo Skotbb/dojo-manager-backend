@@ -1,6 +1,7 @@
 package com.dojomanager.data.entities.schedule;
 
 import java.time.DayOfWeek;
+import java.time.LocalTime;
 
 import jakarta.persistence.Entity;
 import jakarta.persistence.ManyToOne;
@@ -25,6 +26,18 @@ public class WeeklySchedule extends AbstractEntity {
     @Getter @Setter
     @ManyToOne
     private Dojo dojo;
+
+    @Getter @Setter
+    private LocalTime startTime;
+
+    @Getter @Setter
+    private LocalTime endTime;
+
+    @Getter @Setter
+    private String title;
+
+    @Getter @Setter
+    private Long instructorId;
 
 
     public WeeklySchedule(DayOfWeek dayOfWeek, int classesPerDay, Dojo dojo) {
