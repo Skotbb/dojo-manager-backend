@@ -272,16 +272,28 @@ public class StudentService {
                 throw new ForbiddenOperationException("Target rank does not belong to the student's dojo");
             }
         } else {
-            List<RankSetting> settings = rankSettingRepository.findByDojo(student.getDojo()).orElse(List.of());
+            List<RankSetting> ladder = getOrderedLadder(student.getDojo());
             StudentRank currentRank = student.getRank();
-            int currentSortOrder = (currentRank != null && currentRank.getRankSetting() != null && currentRank.getRankSetting().getRankLevel() != null)
-                    ? currentRank.getRankSetting().getRankLevel().getSortOrder()
-                    : -1;
-
-            nextSetting = settings.stream()
-                    .filter(rs -> rs.getRankLevel() != null && rs.getRankLevel().getSortOrder() > currentSortOrder)
-                    .min(Comparator.comparingInt(rs -> rs.getRankLevel().getSortOrder()))
-                    .orElseThrow(() -> new BadRequestException("Student is already at the highest configured rank"));
+            if (currentRank == null || currentRank.getRankSetting() == null) {
+                if (ladder.isEmpty()) {
+                    throw new BadRequestException("No ranks configured for this dojo");
+                }
+                nextSetting = ladder.get(0);
+            } else {
+                Long currentSettingId = currentRank.getRankSetting().getId();
+                int currentIndex = -1;
+                for (int idx = 0; idx < ladder.size(); idx++) {
+                    if (ladder.get(idx).getId().equals(currentSettingId)) {
+                        currentIndex = idx;
+                        break;
+                    }
+                }
+                if (currentIndex >= 0 && currentIndex + 1 < ladder.size()) {
+                    nextSetting = ladder.get(currentIndex + 1);
+                } else {
+                    throw new BadRequestException("Student is already at the highest configured rank");
+                }
+            }
         }
 
         StudentRank rank = student.getRank();
@@ -293,6 +305,30 @@ public class StudentService {
         }
         student.setRank(rankRepository.save(rank));
         return toDto(studentRepository.save(student));
+    }
+
+    private List<RankSetting> getOrderedLadder(Dojo dojo) {
+        List<RankSetting> settings = rankSettingRepository.findByDojo(dojo).orElse(List.of());
+        return settings.stream()
+                .filter(rs -> rs.getRankName() != null && rs.getRankLevel() != null)
+                .sorted(Comparator
+                        .comparingLong((RankSetting rs) -> rs.getRankName().getId())
+                        .thenComparingInt(rs -> rs.getRankLevel().getSortOrder()))
+                .toList();
+    }
+
+    private String formatRankName(RankSetting setting) {
+        if (setting == null) {
+            return "";
+        }
+        String tier = setting.getRankName() != null ? setting.getRankName().getName() : "";
+        if (setting.getRankLevel() != null) {
+            int levelNum = setting.getRankLevel().getNumber();
+            if (tier.equalsIgnoreCase("kyu") || tier.equalsIgnoreCase("dan") || !tier.toLowerCase().contains("belt")) {
+                return (tier + " " + levelNum).trim();
+            }
+        }
+        return tier;
     }
 
     private DojoOwner requireOwner(OwnerPrincipal principal) {
@@ -410,17 +446,23 @@ public class StudentService {
                     int required = setting.getRankLevel().getHoursRequired();
                     boolean hoursMet = required > 0 && rank.getHoursInRank() >= required;
 
-                    List<RankSetting> settings = rankSettingRepository.findByDojo(student.getDojo()).orElse(List.of());
-                    int currentSortOrder = setting.getRankLevel().getSortOrder();
-                    Optional<RankSetting> nextRank = settings.stream()
-                            .filter(rs -> rs.getRankLevel() != null && rs.getRankLevel().getSortOrder() > currentSortOrder)
-                            .min(Comparator.comparingInt(rs -> rs.getRankLevel().getSortOrder()));
-
-                    if (nextRank.isPresent()) {
-                        builder.nextRankSettingId(nextRank.get().getId());
-                        if (nextRank.get().getRankName() != null) {
-                            builder.nextRankName(nextRank.get().getRankName().getName());
+                    List<RankSetting> ladder = getOrderedLadder(student.getDojo());
+                    Long currentSettingId = setting.getId();
+                    int currentIndex = -1;
+                    for (int idx = 0; idx < ladder.size(); idx++) {
+                        if (ladder.get(idx).getId().equals(currentSettingId)) {
+                            currentIndex = idx;
+                            break;
                         }
+                    }
+
+                    if (currentIndex >= 0 && currentIndex + 1 < ladder.size()) {
+                        RankSetting nextRank = ladder.get(currentIndex + 1);
+                        builder.nextRankSettingId(nextRank.getId());
+                        if (nextRank.getRankLevel() != null) {
+                            builder.nextRankLevel(nextRank.getRankLevel().getNumber());
+                        }
+                        builder.nextRankName(formatRankName(nextRank));
                         builder.eligibleForPromotion(hoursMet);
                     } else {
                         builder.eligibleForPromotion(false);

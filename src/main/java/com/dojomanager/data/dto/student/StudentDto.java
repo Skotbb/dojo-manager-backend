@@ -47,5 +47,6 @@ public class StudentDto {
     /** Promotion readiness */
     private Boolean eligibleForPromotion;
     private String nextRankName;
+    private Integer nextRankLevel;
     private Long nextRankSettingId;
 }
