@@ -40,4 +40,12 @@ public class StudentDto {
     private Integer currentStripeCount;
     private Double hoursInRank;
     private Integer hoursRequired;
+
+    /** Reoccurring class schedules this student is enrolled in. */
+    private java.util.List<Long> enrolledScheduleIds;
+
+    /** Promotion readiness */
+    private Boolean eligibleForPromotion;
+    private String nextRankName;
+    private Long nextRankSettingId;
 }

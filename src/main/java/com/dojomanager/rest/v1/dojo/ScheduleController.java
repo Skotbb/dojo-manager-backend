@@ -67,4 +67,12 @@ public class ScheduleController {
             @RequestParam(name = "dojoId", required = false) Long dojoId) {
         return ResponseEntity.ok(scheduleService.getWeekView(principal, dojoId));
     }
+
+    @PostMapping("/{id}/test-promote")
+    public ResponseEntity<List<com.dojomanager.data.dto.student.StudentDto>> testPromote(
+            @AuthenticationPrincipal OwnerPrincipal principal,
+            @PathVariable Long id,
+            @RequestBody List<Long> studentIds) {
+        return ResponseEntity.ok(scheduleService.testPromote(principal, id, studentIds));
+    }
 }

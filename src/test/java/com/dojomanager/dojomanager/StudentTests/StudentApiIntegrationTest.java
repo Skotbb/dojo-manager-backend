@@ -5,6 +5,8 @@ import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
+import java.time.DayOfWeek;
+import java.time.LocalTime;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -21,7 +23,9 @@ import com.dojomanager.data.entities.rank.RankLevel;
 import com.dojomanager.data.entities.rank.RankName;
 import com.dojomanager.data.entities.rank.RankSetting;
 import com.dojomanager.data.entities.rank.StudentRank;
+import com.dojomanager.data.entities.schedule.WeeklySchedule;
 import com.dojomanager.data.repositories.dojo.DojoRepository;
+import com.dojomanager.data.repositories.schedule.WeeklyScheduleRepository;
 import com.dojomanager.services.DojoOwnerService;
 import com.dojomanager.services.DojoService;
 import com.dojomanager.services.RankService;
@@ -67,6 +71,9 @@ class StudentApiIntegrationTest {
 
     @Autowired
     private DojoRepository dojoRepository;
+
+    @Autowired
+    private WeeklyScheduleRepository weeklyScheduleRepository;
 
     @Autowired
     private PasswordEncoder passwordEncoder;
@@ -270,6 +277,65 @@ class StudentApiIntegrationTest {
         assertEquals(HttpStatus.OK, promoteRes.getStatusCode());
         assertEquals("Yellow Belt", promoteRes.getBody().getCurrentRankName());
         assertEquals(0.0, promoteRes.getBody().getHoursInRank());
+    }
+
+    @Test
+    void ownerCanEnrollStudentInSchedules() {
+        OwnerFixture owner = fixture("enroll");
+        Dojo dojo = owner.dojo();
+
+        // 1. Create a weekly schedule
+        WeeklySchedule schedule = new WeeklySchedule();
+        schedule.setDojo(dojo);
+        schedule.setDayOfWeek(DayOfWeek.WEDNESDAY);
+        schedule.setStartTime(LocalTime.of(16, 30));
+        schedule.setEndTime(LocalTime.of(18, 0));
+        schedule.setTitle("Kids Class");
+        schedule = weeklyScheduleRepository.save(schedule);
+
+        // 2. Create student
+        ResponseEntity<StudentDto> studentRes = createStudent(owner.token(),
+                studentBody("Enrolled", "Kid", unique("enroll"), null, dojo.getId()));
+        Long studentId = studentRes.getBody().getId();
+
+        // 3. Enroll student in schedule via PUT /api/v1/students/{id}/schedules
+        ResponseEntity<StudentDto> enrolledRes = rest.exchange(STUDENTS_URL + "/" + studentId + "/schedules",
+                HttpMethod.PUT, authed(owner.token(), List.of(schedule.getId())), StudentDto.class);
+        assertEquals(HttpStatus.OK, enrolledRes.getStatusCode());
+        assertNotNull(enrolledRes.getBody().getEnrolledScheduleIds());
+        assertTrue(enrolledRes.getBody().getEnrolledScheduleIds().contains(schedule.getId()));
+    }
+
+    @Test
+    void ownerCanFetchStudentsEligibleForPromotion() {
+        OwnerFixture owner = fixture("eligible");
+        Dojo dojo = owner.dojo();
+
+        // Configure 2 ranks: White (10 hrs required), Yellow (20 hrs required)
+        RankName rank1 = rankService.saveRankName(new RankName("White Belt", dojo));
+        RankLevel level1 = rankService.saveRankLevel(new RankLevel(0, 1, 10, rank1));
+        BeltColor belt1 = rankService.saveBeltColor(new BeltColor("White", null, 0, level1));
+        RankSetting setting1 = rankService.saveRankSetting(new RankSetting(dojo, rank1, level1, belt1));
+
+        RankName rank2 = rankService.saveRankName(new RankName("Yellow Belt", dojo));
+        RankLevel level2 = rankService.saveRankLevel(new RankLevel(1, 2, 20, rank2));
+        BeltColor belt2 = rankService.saveBeltColor(new BeltColor("Yellow", null, 0, level2));
+        rankService.saveRankSetting(new RankSetting(dojo, rank2, level2, belt2));
+
+        // Create student with 12 hours in rank1 (>= 10)
+        StudentRank studentRank = rankService.saveRank(new StudentRank(12.0, setting1));
+        ResponseEntity<StudentDto> studentRes = createStudent(owner.token(),
+                studentBody("Ready", "Student", unique("ready"), studentRank.getId(), dojo.getId()));
+        assertTrue(Boolean.TRUE.equals(studentRes.getBody().getEligibleForPromotion()));
+        assertEquals("Yellow Belt", studentRes.getBody().getNextRankName());
+
+        // Call GET /api/v1/students/eligible-for-promotion
+        ResponseEntity<List<StudentDto>> eligibleRes = rest.exchange(STUDENTS_URL + "/eligible-for-promotion?dojoId=" + dojo.getId(),
+                HttpMethod.GET, authed(owner.token(), null),
+                new ParameterizedTypeReference<List<StudentDto>>() {});
+        assertEquals(HttpStatus.OK, eligibleRes.getStatusCode());
+        assertFalse(eligibleRes.getBody().isEmpty());
+        assertTrue(eligibleRes.getBody().stream().anyMatch(s -> s.getId().equals(studentRes.getBody().getId())));
     }
 
     private record OwnerFixture(DojoOwner owner, Dojo dojo, String token) {

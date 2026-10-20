@@ -65,6 +65,13 @@ public class StudentController {
         return studentService.listStudents(principal, dojoId, active);
     }
 
+    @GetMapping("/eligible-for-promotion")
+    public List<StudentDto> getEligibleForPromotion(
+            @AuthenticationPrincipal OwnerPrincipal principal,
+            @RequestParam(name = "dojoId", required = false) Long dojoId) {
+        return studentService.getEligibleForPromotion(principal, dojoId);
+    }
+
     @GetMapping("/{id}")
     public StudentDto getStudent(
             @AuthenticationPrincipal OwnerPrincipal principal,
@@ -80,6 +87,14 @@ public class StudentController {
             @Valid @RequestBody StudentRequestForm form) {
 
         return studentService.updateStudent(principal, id, form);
+    }
+
+    @PutMapping("/{id}/schedules")
+    public StudentDto setEnrolledSchedules(
+            @AuthenticationPrincipal OwnerPrincipal principal,
+            @PathVariable("id") Long id,
+            @RequestBody List<Long> scheduleIds) {
+        return studentService.setEnrolledSchedules(principal, id, scheduleIds);
     }
 
     /**

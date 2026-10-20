@@ -1,15 +1,19 @@
 package com.dojomanager.services;
 
 import java.util.Comparator;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Optional;
+import java.util.Set;
 
+import com.dojomanager.data.entities.AbstractEntity;
 import com.dojomanager.data.entities.dojo.Dojo;
 import com.dojomanager.data.entities.dojo.DojoOwner;
 import com.dojomanager.data.entities.people.Student;
 import com.dojomanager.data.entities.rank.RankSetting;
 import com.dojomanager.data.entities.rank.StudentRank;
+import com.dojomanager.data.entities.schedule.WeeklySchedule;
 import com.dojomanager.data.forms.student.StudentRequestForm;
 import com.dojomanager.data.dto.student.StudentDto;
 import com.dojomanager.data.repositories.dojo.DojoOwnerRepository;
@@ -17,6 +21,7 @@ import com.dojomanager.data.repositories.dojo.DojoRepository;
 import com.dojomanager.data.repositories.people.StudentRepository;
 import com.dojomanager.data.repositories.rank.RankRepository;
 import com.dojomanager.data.repositories.rank.RankSettingRepository;
+import com.dojomanager.data.repositories.schedule.WeeklyScheduleRepository;
 import com.dojomanager.services.exceptions.BadRequestException;
 import com.dojomanager.services.exceptions.DuplicateResourceException;
 import com.dojomanager.services.exceptions.ForbiddenOperationException;
@@ -47,6 +52,7 @@ public class StudentService {
     private final DojoOwnerRepository dojoOwnerRepository;
     private final RankRepository rankRepository;
     private final RankSettingRepository rankSettingRepository;
+    private final WeeklyScheduleRepository weeklyScheduleRepository;
 
     @Transactional(readOnly = true)
     public List<StudentDto> listStudents(OwnerPrincipal principal, Long dojoId, Boolean active) {
@@ -88,6 +94,10 @@ public class StudentService {
             student.setRank(requireRankInDojo(dojo, form.getRankId()));
         }
 
+        if (form.getEnrolledScheduleIds() != null) {
+            student.setEnrolledSchedules(resolveSchedulesInDojo(dojo, form.getEnrolledScheduleIds()));
+        }
+
         // Keep both sides of the association consistent instead of relying on the FK only.
         dojo.addStudent(student);
 
@@ -114,7 +124,38 @@ public class StudentService {
             student.setRank(requireRankInDojo(student.getDojo(), form.getRankId()));
         }
 
+        if (form.getEnrolledScheduleIds() != null) {
+            student.setEnrolledSchedules(resolveSchedulesInDojo(student.getDojo(), form.getEnrolledScheduleIds()));
+        }
+
         return toDto(studentRepository.save(student));
+    }
+
+    @Transactional
+    public StudentDto setEnrolledSchedules(OwnerPrincipal principal, Long studentId, List<Long> scheduleIds) {
+        Student student = requireOwnedStudent(principal, studentId);
+        student.setEnrolledSchedules(resolveSchedulesInDojo(student.getDojo(), scheduleIds));
+        return toDto(studentRepository.save(student));
+    }
+
+    private Set<WeeklySchedule> resolveSchedulesInDojo(Dojo dojo, List<Long> scheduleIds) {
+        if (scheduleIds == null || scheduleIds.isEmpty()) {
+            return new HashSet<>();
+        }
+        List<WeeklySchedule> schedules = weeklyScheduleRepository.findAllById(scheduleIds);
+        for (WeeklySchedule s : schedules) {
+            if (s.getDojo() == null || !dojo.getId().equals(s.getDojo().getId())) {
+                throw new ForbiddenOperationException("Schedule " + s.getId() + " does not belong to student's dojo");
+            }
+        }
+        return new HashSet<>(schedules);
+    }
+
+    @Transactional(readOnly = true)
+    public List<StudentDto> getEligibleForPromotion(OwnerPrincipal principal, Long dojoId) {
+        return listStudents(principal, dojoId, true).stream()
+                .filter(s -> Boolean.TRUE.equals(s.getEligibleForPromotion()))
+                .toList();
     }
 
     /**
@@ -301,6 +342,14 @@ public class StudentService {
                 .active(student.isActive())
                 .dojoId(student.getDojo() == null ? null : student.getDojo().getId());
 
+        if (student.getEnrolledSchedules() != null) {
+            builder.enrolledScheduleIds(student.getEnrolledSchedules().stream()
+                    .map(AbstractEntity::getId)
+                    .toList());
+        } else {
+            builder.enrolledScheduleIds(List.of());
+        }
+
         Optional.ofNullable(student.getRank()).ifPresent(rank -> {
             builder.rankId(rank.getId()).hoursInRank(rank.getHoursInRank());
 
@@ -313,6 +362,25 @@ public class StudentService {
                 if (setting.getRankLevel() != null) {
                     builder.currentRankLevel(setting.getRankLevel().getNumber());
                     builder.hoursRequired(setting.getRankLevel().getHoursRequired());
+
+                    int required = setting.getRankLevel().getHoursRequired();
+                    boolean hoursMet = required > 0 && rank.getHoursInRank() >= required;
+
+                    List<RankSetting> settings = rankSettingRepository.findByDojo(student.getDojo()).orElse(List.of());
+                    int currentSortOrder = setting.getRankLevel().getSortOrder();
+                    Optional<RankSetting> nextRank = settings.stream()
+                            .filter(rs -> rs.getRankLevel() != null && rs.getRankLevel().getSortOrder() > currentSortOrder)
+                            .min(Comparator.comparingInt(rs -> rs.getRankLevel().getSortOrder()));
+
+                    if (nextRank.isPresent()) {
+                        builder.nextRankSettingId(nextRank.get().getId());
+                        if (nextRank.get().getRankName() != null) {
+                            builder.nextRankName(nextRank.get().getRankName().getName());
+                        }
+                        builder.eligibleForPromotion(hoursMet);
+                    } else {
+                        builder.eligibleForPromotion(false);
+                    }
                 }
                 if (setting.getBeltColor() != null) {
                     builder.currentBeltColor(setting.getBeltColor().getColor());
@@ -321,6 +389,10 @@ public class StudentService {
                 }
             }
         });
+
+        if (student.getRank() == null) {
+            builder.eligibleForPromotion(false);
+        }
 
         return builder.build();
     }

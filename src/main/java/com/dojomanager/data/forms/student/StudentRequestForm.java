@@ -45,4 +45,9 @@ public class StudentRequestForm {
      * not belong to the authenticated principal are rejected with 403.
      */
     private Long dojoId;
+
+    /**
+     * Optional reoccurring class schedule IDs this student is assigned to.
+     */
+    private java.util.List<Long> enrolledScheduleIds;
 }

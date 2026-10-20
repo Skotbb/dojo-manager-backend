@@ -2,12 +2,14 @@ package com.dojomanager.services;
 
 import java.time.DayOfWeek;
 import java.time.LocalTime;
+import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
 
 import com.dojomanager.data.dto.schedule.ScheduleSessionDTO;
+import com.dojomanager.data.dto.student.StudentDto;
 import com.dojomanager.data.entities.dojo.Dojo;
 import com.dojomanager.data.entities.dojo.DojoOwner;
 import com.dojomanager.data.entities.schedule.DailySchedule;
@@ -34,6 +36,7 @@ public class ScheduleService {
     private final DailyScheduleRepository dailyRepo;
     private final DojoOwnerRepository ownerRepo;
     private final DojoRepository dojoRepository;
+    private final StudentService studentService;
 
     public WeeklySchedule saveWeeklySchedule(WeeklySchedule weekSched) {
         return weeklyRepo.save(weekSched);
@@ -62,6 +65,7 @@ public class ScheduleService {
         entity.setEndTime(end);
         entity.setTitle(session.getTitle().trim());
         entity.setInstructorId(session.getInstructorId());
+        entity.setIsTestEvent(session.getIsTestEvent());
 
         WeeklySchedule saved = weeklyRepo.save(entity);
         return ScheduleSessionDTO.from(saved);
@@ -89,9 +93,26 @@ public class ScheduleService {
         existing.setEndTime(end);
         existing.setTitle(session.getTitle().trim());
         existing.setInstructorId(session.getInstructorId());
+        if (session.getIsTestEvent() != null) {
+            existing.setIsTestEvent(session.getIsTestEvent());
+        }
 
         WeeklySchedule saved = weeklyRepo.save(existing);
         return ScheduleSessionDTO.from(saved);
+    }
+
+    @Transactional
+    public List<StudentDto> testPromote(OwnerPrincipal principal, Long scheduleId, List<Long> studentIds) {
+        DojoOwner owner = requireOwner(principal);
+        requireOwnedSchedule(owner, scheduleId);
+
+        List<StudentDto> promoted = new ArrayList<>();
+        if (studentIds != null) {
+            for (Long sId : studentIds) {
+                promoted.add(studentService.promoteStudent(principal, sId, null));
+            }
+        }
+        return promoted;
     }
 
     @Transactional
