@@ -2,12 +2,15 @@ package com.dojomanager.rest.v1.dojo;
 
 import java.util.List;
 
+import com.dojomanager.data.dto.dojo.CreateDojoRequest;
 import com.dojomanager.data.dto.dojo.DojoDto;
 import com.dojomanager.data.dto.dojo.DojoResponse;
 import com.dojomanager.data.dto.dojo.DojoUpdateRequest;
 import com.dojomanager.data.entities.dojo.Dojo;
 import com.dojomanager.security.services.OwnerPrincipal;
 import com.dojomanager.services.DojoService;
+
+import jakarta.validation.Valid;
 
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -51,7 +54,7 @@ public class DojoController {
     @PostMapping
     public ResponseEntity<DojoDto> createDojo(
             @AuthenticationPrincipal OwnerPrincipal principal,
-            @RequestBody DojoUpdateRequest request) {
+            @Valid @RequestBody CreateDojoRequest request) {
 
         Dojo created = dojoService.createDojo(principal, request);
 

@@ -4,10 +4,15 @@ import java.util.List;
 import java.util.Optional;
 import java.util.Set;
 
+import com.dojomanager.data.dto.dojo.CreateDojoRequest;
 import com.dojomanager.data.dto.dojo.DojoUpdateRequest;
 import com.dojomanager.data.entities.dojo.Dojo;
 import com.dojomanager.data.entities.dojo.DojoOwner;
 import com.dojomanager.data.entities.people.Address;
+import com.dojomanager.data.entities.rank.BeltColor;
+import com.dojomanager.data.entities.rank.RankLevel;
+import com.dojomanager.data.entities.rank.RankName;
+import com.dojomanager.data.entities.rank.RankSetting;
 import com.dojomanager.data.repositories.dojo.*;
 import com.dojomanager.security.services.OwnerPrincipal;
 import com.dojomanager.services.exceptions.ResourceNotFoundException;
@@ -29,6 +34,9 @@ public class DojoService {
 
     @Autowired
     private AddressService addressService;
+
+    @Autowired
+    private RankService rankService;
     
     private Logger logger = LoggerFactory.getLogger(DojoService.class);
 
@@ -42,17 +50,21 @@ public class DojoService {
     }
 
     /**
-     * Creates a new dojo owned by the authenticated principal.
+     * Creates a new dojo owned by the authenticated principal and persists its
+     * initial rank graph (rank name → level → belt color → rank setting).
      */
     @Transactional
-    public Dojo createDojo(OwnerPrincipal principal, DojoUpdateRequest request) {
+    public Dojo createDojo(OwnerPrincipal principal, CreateDojoRequest request) {
         DojoOwner owner = ownerService.requireOwner(principal);
 
         Dojo dojo = new Dojo();
-        applyRequest(dojo, request);
+        applyFields(dojo, request.getName(), request.getWebsite(), request.getAddress());
         dojo.setOwner(owner);
 
-        return dojoRepo.saveAndFlush(dojo);
+        Dojo savedDojo = dojoRepo.saveAndFlush(dojo);
+        persistRanks(savedDojo, request.getRanks());
+
+        return savedDojo;
     }
 
     /**
@@ -75,15 +87,49 @@ public class DojoService {
     }
 
     private void applyRequest(Dojo dojo, DojoUpdateRequest request) {
-        if (request.getName() != null) {
-            dojo.setName(request.getName());
+        applyFields(dojo, request.getName(), request.getWebsite(), request.getAddress());
+    }
+
+    private void applyFields(Dojo dojo, String name, String website, String rawAddress) {
+        if (name != null) {
+            dojo.setName(name);
         }
-        if (request.getWebsite() != null) {
-            dojo.setWebsite(request.getWebsite());
+        if (website != null) {
+            dojo.setWebsite(website);
         }
-        if (request.getAddress() != null) {
-            Address address = new Address(request.getAddress(), null, null, null, null);
+        if (rawAddress != null) {
+            Address address = new Address(rawAddress, null, null, null, null);
             dojo.setAddress(addressService.saveAddress(address));
+        }
+    }
+
+    /**
+     * Persists one {@link RankSetting} per level. A rank name is saved once,
+     * then each level fans out into a level, a belt color and the student-facing
+     * join row.
+     */
+    private void persistRanks(Dojo dojo, List<CreateDojoRequest.RankRequest> ranks) {
+        if (ranks == null || ranks.isEmpty()) {
+            return;
+        }
+
+        for (CreateDojoRequest.RankRequest rank : ranks) {
+            RankName rankName = rankService.saveRankName(new RankName(rank.getName(), dojo));
+
+            if (rank.getLevels() == null) {
+                continue;
+            }
+
+            for (CreateDojoRequest.RankLevelRequest level : rank.getLevels()) {
+                RankLevel rankLevel = rankService.saveRankLevel(new RankLevel(
+                        level.getSortOrder(), level.getNumber(), level.getHoursRequired(), rankName));
+
+                BeltColor beltColor = rankService.saveBeltColor(new BeltColor(
+                        level.getBeltColor(), level.getStripeColor(),
+                        level.getStripeCount() != null ? level.getStripeCount() : 0, rankLevel));
+
+                rankService.saveRankSetting(new RankSetting(dojo, rankName, rankLevel, beltColor));
+            }
         }
     }
 

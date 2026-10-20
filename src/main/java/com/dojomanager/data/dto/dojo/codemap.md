@@ -2,10 +2,11 @@
 
 ## Responsibility
 
-DTO Layer — dojo/owner API payloads: flattened dojo reads, the owner profile response, and the dojo create/update body.
+DTO Layer — dojo/owner API payloads: flattened dojo reads, the owner profile response, the dojo update body, and the create-with-ranks request.
 
 ## Design
 
+- `CreateDojoRequest` — Lombok `@Data` body for `POST /api/v1/dojos`, kept separate from `DojoUpdateRequest` so updates cannot rewrite the rank graph. Top level: `name` (`@NotBlank`), `website`, `address`, and `@Valid List<RankRequest> ranks` (nullable/empty allowed). Nested static classes: `RankRequest` (`@NotBlank name`, `@Valid levels: List<RankLevelRequest>`) and `RankLevelRequest` (`sortOrder`, `number`, `hoursRequired` as primitives defaulting to 0, `beltColor` `@NotBlank`, nullable `stripeColor`, `Integer stripeCount` — null-safe at persistence).
 - `DojoDto` — new flattened dojo response (Lombok-based) with `id`, `name`, `website`, and a flattened address; static `from(Dojo)` mapper. Never exposes the JPA entity graph.
 - `DojoResponse` — plain POJO wrapper. Single field `List<DojoDto> dojos` (changed from `List<Dojo>` — it no longer serializes entities directly). Constructed by `DojoController.getMyDojos`.
 - `OwnerResponse` — new flat owner profile response with `id`, names, email, and `managedDojos` as `DojoDto[]`; static `from(DojoOwner)` mapper. Replaces the raw `DojoOwner`/`Collection<Dojo>` responses the old `/owner` endpoints returned.
@@ -16,12 +17,12 @@ DTO Layer — dojo/owner API payloads: flattened dojo reads, the owner profile r
 ## Flow
 
 1. `GET /api/v1/dojos` → `DojoController.getMyDojos` maps each owned `Dojo` through `DojoDto::from` into `DojoResponse`.
-2. `POST /api/v1/dojos` → `DojoUpdateRequest` bound from JSON → `DojoService.createDojo` applies non-null fields → `DojoDto.from(created)` returned with `201 Created`.
+2. `POST /api/v1/dojos` → `CreateDojoRequest` bound from JSON with cascade validation → `DojoService.createDojo` applies `name`/`website`/`address`, persists the dojo, then builds the rank graph (one `RankName` per rank; per level `RankLevel` → `BeltColor` → `RankSetting`) → `DojoDto.from(created)` returned with `201 Created`.
 3. `PUT /api/v1/dojos/{id}` → same request shape → `DojoService.updateDojo` applies to an owned dojo → `DojoDto.from(updated)`.
 4. `GET /api/v1/owner` → `OwnerResponse.from(getOwnerProfile(principal))`, with `managedDojos` flattened to `DojoDto[]`.
 
 ## Integration
 
-- Consumed by `com.dojomanager.rest.v1.dojo.DojoController` (`DojoDto`, `DojoResponse`, `DojoUpdateRequest`) and `DojoOwnerController` (`OwnerResponse`).
+- Consumed by `com.dojomanager.rest.v1.dojo.DojoController` (`CreateDojoRequest` for POST, `DojoUpdateRequest` for PUT, `DojoDto`, `DojoResponse`) and `DojoOwnerController` (`OwnerResponse`).
 - Maps from `com.dojomanager.data.entities.dojo.Dojo` / `DojoOwner` and `com.dojomanager.data.entities.people.Address`.
 - Services involved: `DojoService` (`listDojos`/`createDojo`/`updateDojo` via `applyRequest`), `DojoOwnerService.getOwnerProfile`.
