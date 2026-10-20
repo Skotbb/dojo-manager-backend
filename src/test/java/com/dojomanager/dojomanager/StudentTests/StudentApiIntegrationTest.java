@@ -338,6 +338,29 @@ class StudentApiIntegrationTest {
         assertTrue(eligibleRes.getBody().stream().anyMatch(s -> s.getId().equals(studentRes.getBody().getId())));
     }
 
+    @Test
+    void updatingStudentPreservesHoursInRank() {
+        OwnerFixture owner = fixture("preserve");
+        Dojo dojo = owner.dojo();
+
+        RankName rank1 = rankService.saveRankName(new RankName("White Belt", dojo));
+        RankLevel level1 = rankService.saveRankLevel(new RankLevel(0, 1, 10, rank1));
+        BeltColor belt1 = rankService.saveBeltColor(new BeltColor("White", null, 0, level1));
+        RankSetting setting1 = rankService.saveRankSetting(new RankSetting(dojo, rank1, level1, belt1));
+
+        StudentRank studentRank = rankService.saveRank(new StudentRank(18.5, setting1));
+        ResponseEntity<StudentDto> studentRes = createStudent(owner.token(),
+                studentBody("Time", "Keeper", unique("time"), studentRank.getId(), dojo.getId()));
+        Long studentId = studentRes.getBody().getId();
+        assertEquals(18.5, studentRes.getBody().getHoursInRank());
+
+        // Update student submitting setting1.getId() as the rankId (like the UI form does)
+        ResponseEntity<StudentDto> updatedRes = updateStudent(owner.token(), studentId,
+                studentBody("Time", "Keeper Updated", unique("time.updated"), setting1.getId(), dojo.getId()));
+        assertEquals(HttpStatus.OK, updatedRes.getStatusCode());
+        assertEquals(18.5, updatedRes.getBody().getHoursInRank(), "hours in rank must be preserved on update");
+    }
+
     private record OwnerFixture(DojoOwner owner, Dojo dojo, String token) {
     }
 

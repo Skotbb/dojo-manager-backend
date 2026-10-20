@@ -121,7 +121,7 @@ public class StudentService {
 
         // A null rankId means "do not touch the rank": never silently clear rank history.
         if (form.getRankId() != null) {
-            student.setRank(requireRankInDojo(student.getDojo(), form.getRankId()));
+            applyRankToStudent(student, form.getRankId());
         }
 
         if (form.getEnrolledScheduleIds() != null) {
@@ -129,6 +129,50 @@ public class StudentService {
         }
 
         return toDto(studentRepository.save(student));
+    }
+
+    private void applyRankToStudent(Student student, Long rankId) {
+        StudentRank currentRank = student.getRank();
+        if (currentRank != null) {
+            // If already pointing to the exact same StudentRank ID:
+            if (rankId.equals(currentRank.getId())) {
+                return; // Nothing changed, keep existing hours
+            }
+
+            // If pointing to the same RankSetting ID:
+            if (currentRank.getRankSetting() != null && rankId.equals(currentRank.getRankSetting().getId())) {
+                return; // Nothing changed, keep existing hours
+            }
+
+            // If it's a different RankSetting ID:
+            Optional<RankSetting> settingOpt = rankSettingRepository.findById(rankId);
+            if (settingOpt.isPresent()) {
+                RankSetting newSetting = settingOpt.get();
+                if (!student.getDojo().getId().equals(newSetting.getDojo().getId())) {
+                    throw new ForbiddenOperationException("Rank setting does not belong to student's dojo");
+                }
+                // Update rank setting on the student's existing rank, preserving hours in rank!
+                currentRank.setRankSetting(newSetting);
+                rankRepository.save(currentRank);
+                return;
+            }
+
+            // If it's a different StudentRank ID:
+            Optional<StudentRank> rankOpt = rankRepository.findById(rankId);
+            if (rankOpt.isPresent()) {
+                StudentRank newRank = rankOpt.get();
+                if (newRank.getRankSetting() != null && !student.getDojo().getId().equals(newRank.getRankSetting().getDojo().getId())) {
+                    throw new ForbiddenOperationException("Rank does not belong to student's dojo");
+                }
+                student.setRank(newRank);
+                return;
+            }
+
+            throw new ResourceNotFoundException("Rank " + rankId + " was not found");
+        } else {
+            // Student has no rank yet
+            student.setRank(requireRankInDojo(student.getDojo(), rankId));
+        }
     }
 
     @Transactional
