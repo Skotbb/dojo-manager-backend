@@ -16,6 +16,7 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.Authentication;
+import org.springframework.security.core.AuthenticationException;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.security.crypto.password.PasswordEncoder;
@@ -44,11 +45,15 @@ public class AuthorizationController {
 
     @PostMapping("/login")
     public ResponseEntity<?> authenticateUser(@Valid @RequestBody LoginForm loginRequest) {
-        try{
+        try {
             return ResponseEntity.ok(authenticateUser(loginRequest.getEmail(), loginRequest.getPassword()));
-        } catch(Exception e) {
-            MessageResponse messageResponse = new MessageResponse();
-            messageResponse.setError(e.getMessage());
+        } catch (AuthenticationException e) {
+            MessageResponse messageResponse = new MessageResponse("Invalid email or password");
+            messageResponse.setError("Invalid email or password");
+            return new ResponseEntity<>(messageResponse, HttpStatus.UNAUTHORIZED);
+        } catch (Exception e) {
+            MessageResponse messageResponse = new MessageResponse("An error occurred during authentication");
+            messageResponse.setError("Bad Request");
             return new ResponseEntity<>(messageResponse, HttpStatus.BAD_REQUEST);
         }
     }

@@ -20,9 +20,10 @@ public class UserDetailsServiceImpl implements UserDetailsService {
     @Override
     @Transactional
     public UserDetails loadUserByUsername(String username) throws UsernameNotFoundException {
-        Optional<DojoOwner> owner = ownerService.getOwnerByEmail(username);
-        
-        return OwnerPrincipal.build(owner.get());
+        DojoOwner owner = ownerService.getOwnerByEmail(username)
+                .orElseThrow(() -> new UsernameNotFoundException("User not found with email: " + username));
+
+        return OwnerPrincipal.build(owner);
     }
 
 

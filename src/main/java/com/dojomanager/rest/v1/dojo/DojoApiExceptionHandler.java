@@ -3,6 +3,7 @@ package com.dojomanager.rest.v1.dojo;
 import java.util.HashMap;
 import java.util.Map;
 
+import com.dojomanager.services.exceptions.BadRequestException;
 import com.dojomanager.services.exceptions.ForbiddenOperationException;
 import com.dojomanager.services.exceptions.ResourceNotFoundException;
 
@@ -24,7 +25,7 @@ import org.springframework.web.bind.annotation.RestControllerAdvice;
  * from an update) surfaced as a 500 rather than the intended 404.
  * </p>
  */
-@RestControllerAdvice(assignableTypes = { DojoController.class, DojoOwnerController.class })
+@RestControllerAdvice(assignableTypes = { DojoController.class, DojoOwnerController.class, ScheduleController.class })
 public class DojoApiExceptionHandler {
 
     @ExceptionHandler(ResourceNotFoundException.class)
@@ -35,6 +36,11 @@ public class DojoApiExceptionHandler {
     @ExceptionHandler(ForbiddenOperationException.class)
     public ResponseEntity<Map<String, Object>> handleForbidden(ForbiddenOperationException ex) {
         return error(HttpStatus.FORBIDDEN, ex.getMessage());
+    }
+
+    @ExceptionHandler(BadRequestException.class)
+    public ResponseEntity<Map<String, Object>> handleBadRequest(BadRequestException ex) {
+        return error(HttpStatus.BAD_REQUEST, ex.getMessage());
     }
 
     @ExceptionHandler(HttpMessageNotReadableException.class)

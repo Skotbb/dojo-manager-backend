@@ -1,48 +1,70 @@
 package com.dojomanager.rest.v1.dojo;
 
-import com.dojomanager.data.dto.schedule.ScheduleSessionDTO;
-import com.dojomanager.data.entities.schedule.WeeklySchedule;
-import com.dojomanager.services.ScheduleService;
-
-import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.http.ResponseEntity;
-import org.springframework.web.bind.annotation.*;
-
+import java.net.URI;
 import java.util.List;
 import java.util.Map;
 
+import com.dojomanager.data.dto.schedule.ScheduleSessionDTO;
+import com.dojomanager.security.services.OwnerPrincipal;
+import com.dojomanager.services.ScheduleService;
+
+import jakarta.validation.Valid;
+import lombok.RequiredArgsConstructor;
+
+import org.springframework.http.ResponseEntity;
+import org.springframework.security.core.annotation.AuthenticationPrincipal;
+import org.springframework.web.bind.annotation.CrossOrigin;
+import org.springframework.web.bind.annotation.DeleteMapping;
+import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.PutMapping;
+import org.springframework.web.bind.annotation.RequestBody;
+import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
+import org.springframework.web.bind.annotation.RestController;
+
+/**
+ * Schedule session management for the authenticated dojo owner.
+ */
 @RestController
+@CrossOrigin(origins = "http://localhost:4200", maxAge = 3600)
 @RequestMapping(path = "/api/v1/schedules")
+@RequiredArgsConstructor
 public class ScheduleController {
 
-    @Autowired
-    private ScheduleService scheduleService;
+    private final ScheduleService scheduleService;
 
     @PostMapping
-    public ResponseEntity<ScheduleSessionDTO> createSession(@RequestBody ScheduleSessionDTO dto) {
-        ScheduleSessionDTO saved = scheduleService.saveSession(dto);
-        return ResponseEntity.created(null)
-            .body(saved);
+    public ResponseEntity<ScheduleSessionDTO> createSession(
+            @AuthenticationPrincipal OwnerPrincipal principal,
+            @Valid @RequestBody ScheduleSessionDTO dto) {
+        ScheduleSessionDTO saved = scheduleService.saveSession(principal, dto);
+        return ResponseEntity.created(URI.create("/api/v1/schedules/" + saved.getId()))
+                .body(saved);
     }
 
     @PutMapping("/{id}")
     public ResponseEntity<ScheduleSessionDTO> updateSession(
-            @PathVariable Long id, @RequestBody ScheduleSessionDTO dto) {
-        ScheduleSessionDTO updated = scheduleService.updateSession(id, dto);
-        if (updated == null) {
-            return ResponseEntity.notFound().build();
-        }
+            @AuthenticationPrincipal OwnerPrincipal principal,
+            @PathVariable Long id,
+            @Valid @RequestBody ScheduleSessionDTO dto) {
+        ScheduleSessionDTO updated = scheduleService.updateSession(principal, id, dto);
         return ResponseEntity.ok(updated);
     }
 
     @DeleteMapping("/{id}")
-    public ResponseEntity<Void> deleteSession(@PathVariable Long id) {
-        scheduleService.deleteSession(id);
-        return ResponseEntity.ok(null);
+    public ResponseEntity<Void> deleteSession(
+            @AuthenticationPrincipal OwnerPrincipal principal,
+            @PathVariable Long id) {
+        scheduleService.deleteSession(principal, id);
+        return ResponseEntity.noContent().build();
     }
 
     @GetMapping("/week")
-    public ResponseEntity<Map<String, List<WeeklySchedule>>> getWeekView() {
-        return scheduleService.getWeekView();
+    public ResponseEntity<Map<String, List<ScheduleSessionDTO>>> getWeekView(
+            @AuthenticationPrincipal OwnerPrincipal principal,
+            @RequestParam(name = "dojoId", required = false) Long dojoId) {
+        return ResponseEntity.ok(scheduleService.getWeekView(principal, dojoId));
     }
 }
