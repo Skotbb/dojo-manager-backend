@@ -1,22 +1,31 @@
 package com.dojomanager.services;
 
+import java.time.Duration;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.util.Comparator;
 import java.util.List;
 import java.util.Optional;
 
 import com.dojomanager.data.dto.attendance.AttendanceRecordDto;
 import com.dojomanager.data.entities.attendance.AttendanceRecord;
+import com.dojomanager.data.entities.attendance.AttendanceStatus;
 import com.dojomanager.data.entities.dojo.Dojo;
 import com.dojomanager.data.entities.dojo.DojoOwner;
 import com.dojomanager.data.entities.people.Student;
+import com.dojomanager.data.entities.rank.RankSetting;
+import com.dojomanager.data.entities.rank.StudentRank;
 import com.dojomanager.data.entities.schedule.DailySchedule;
+import com.dojomanager.data.entities.schedule.WeeklySchedule;
 import com.dojomanager.data.forms.attendance.AttendanceCheckInForm;
 import com.dojomanager.data.repositories.attendance.AttendanceRecordRepository;
 import com.dojomanager.data.repositories.dojo.DojoOwnerRepository;
 import com.dojomanager.data.repositories.dojo.DojoRepository;
 import com.dojomanager.data.repositories.people.StudentRepository;
+import com.dojomanager.data.repositories.rank.RankRepository;
+import com.dojomanager.data.repositories.rank.RankSettingRepository;
 import com.dojomanager.data.repositories.schedule.DailyScheduleRepository;
+import com.dojomanager.data.repositories.schedule.WeeklyScheduleRepository;
 import com.dojomanager.services.exceptions.BadRequestException;
 import com.dojomanager.services.exceptions.DuplicateResourceException;
 import com.dojomanager.services.exceptions.ForbiddenOperationException;
@@ -43,6 +52,9 @@ public class AttendanceService {
     private final StudentRepository studentRepository;
     private final DojoRepository dojoRepository;
     private final DailyScheduleRepository dailyScheduleRepository;
+    private final WeeklyScheduleRepository weeklyScheduleRepository;
+    private final RankRepository rankRepository;
+    private final RankSettingRepository rankSettingRepository;
     private final DojoOwnerRepository ownerRepository;
 
     /**
@@ -61,25 +73,25 @@ public class AttendanceService {
         Student student = requireOwnedStudent(owner, form.getStudentId());
         Dojo dojo = student.getDojo();
 
-        Long sessionId = form.getSessionId();
+        Long rawSessionId = form.getSessionId();
         LocalDate sessionDate = form.getDate();
 
-        if (sessionId == null && sessionDate == null) {
+        if (rawSessionId == null && sessionDate == null) {
             throw new BadRequestException("A sessionId or date is required");
         }
-        if (sessionId != null && sessionDate == null) {
+        if (rawSessionId != null && sessionDate == null) {
             throw new BadRequestException("A sessionId requires a date");
         }
 
         DailySchedule session = null;
-        if (sessionId != null) {
-            session = dailyScheduleRepository.findById(sessionId)
-                    .orElseThrow(() -> new ResourceNotFoundException("Session " + sessionId + " was not found"));
+        if (rawSessionId != null) {
+            session = resolveDailySchedule(rawSessionId);
             verifySessionDojo(session, student);
         }
 
+        Long resolvedSessionId = session != null ? session.getId() : null;
         Optional<AttendanceRecord> existing = attendanceRepository
-                .findByStudentIdAndSessionIdAndSessionDate(student.getId(), sessionId, sessionDate);
+                .findByStudentIdAndSessionIdAndSessionDate(student.getId(), resolvedSessionId, sessionDate);
         if (existing.isPresent()) {
             throw new DuplicateResourceException(
                     "An attendance record already exists for this student on " + sessionDate);
@@ -96,19 +108,104 @@ public class AttendanceService {
         record.setCreatedAt(now);
         record.setUpdatedAt(now);
 
-        return attendanceRepository.save(record);
+        AttendanceRecord savedRecord = attendanceRepository.save(record);
+
+        // Add class duration to student's time in rank
+        if (form.getStatus() == AttendanceStatus.PRESENT || form.getStatus() == AttendanceStatus.LATE) {
+            double durationHours = calculateDuration(session);
+            StudentRank rank = student.getRank();
+            if (rank != null) {
+                rank.setHoursInRank(rank.getHoursInRank() + durationHours);
+                rankRepository.save(rank);
+            } else {
+                List<RankSetting> settings = rankSettingRepository.findByDojo(dojo).orElse(List.of());
+                if (!settings.isEmpty()) {
+                    RankSetting lowest = settings.stream()
+                            .filter(rs -> rs.getRankLevel() != null)
+                            .min(Comparator.comparingInt(rs -> rs.getRankLevel().getSortOrder()))
+                            .orElse(settings.get(0));
+                    StudentRank newRank = new StudentRank(durationHours, lowest);
+                    student.setRank(rankRepository.save(newRank));
+                    studentRepository.save(student);
+                }
+            }
+        }
+
+        return savedRecord;
+    }
+
+    private double calculateDuration(DailySchedule session) {
+        if (session == null) {
+            return 1.0;
+        }
+        if (session.getHoursPerClass() > 0) {
+            return session.getHoursPerClass();
+        }
+        if (session.getWeeklySchedule() != null && session.getWeeklySchedule().getStartTime() != null
+                && session.getWeeklySchedule().getEndTime() != null) {
+            long minutes = Duration.between(session.getWeeklySchedule().getStartTime(), session.getWeeklySchedule().getEndTime()).toMinutes();
+            return Math.max(0.25, minutes / 60.0);
+        }
+        return 1.0;
+    }
+
+    private DailySchedule resolveDailySchedule(Long sessionId) {
+        Optional<DailySchedule> dailyOpt = dailyScheduleRepository.findById(sessionId);
+        if (dailyOpt.isPresent()) {
+            return dailyOpt.get();
+        }
+
+        Optional<WeeklySchedule> weeklyOpt = weeklyScheduleRepository.findById(sessionId);
+        if (weeklyOpt.isPresent()) {
+            WeeklySchedule weekly = weeklyOpt.get();
+            Optional<DailySchedule> existing = dailyScheduleRepository.findFirstByWeeklyScheduleId(weekly.getId());
+            if (existing.isPresent()) {
+                return existing.get();
+            }
+            double duration = 1.0;
+            if (weekly.getStartTime() != null && weekly.getEndTime() != null) {
+                long minutes = Duration.between(weekly.getStartTime(), weekly.getEndTime()).toMinutes();
+                duration = Math.max(0.25, minutes / 60.0);
+            }
+            DailySchedule newDaily = new DailySchedule(duration, weekly.getStartTime(), weekly);
+            return dailyScheduleRepository.save(newDaily);
+        }
+
+        throw new ResourceNotFoundException("Session " + sessionId + " was not found");
     }
 
     @Transactional(readOnly = true)
     public List<AttendanceRecordDto> findBySession(OwnerPrincipal principal, Long sessionId, LocalDate date) {
         DojoOwner owner = requireOwner(principal);
-        DailySchedule session = dailyScheduleRepository.findById(sessionId)
-                .orElseThrow(() -> new ResourceNotFoundException("Session " + sessionId + " was not found"));
+        DailySchedule session = resolveDailySchedule(sessionId);
         verifySessionOwner(session, owner);
-        return attendanceRepository.findBySessionIdAndSessionDate(sessionId, date)
+        return attendanceRepository.findBySessionIdAndSessionDate(session.getId(), date)
                 .stream()
                 .map(this::toDto)
                 .toList();
+    }
+
+    @Transactional
+    public void deleteAttendance(OwnerPrincipal principal, Long attendanceId) {
+        DojoOwner owner = requireOwner(principal);
+        AttendanceRecord record = attendanceRepository.findById(attendanceId)
+                .orElseThrow(() -> new ResourceNotFoundException("Attendance record " + attendanceId + " was not found"));
+
+        if (!record.getDojo().getOwner().getId().equals(owner.getId())) {
+            throw new ForbiddenOperationException("Attendance record does not belong to your dojo");
+        }
+
+        if (record.getStatus() == AttendanceStatus.PRESENT || record.getStatus() == AttendanceStatus.LATE) {
+            double durationHours = calculateDuration(record.getSession());
+            Student student = record.getStudent();
+            if (student != null && student.getRank() != null) {
+                StudentRank rank = student.getRank();
+                rank.setHoursInRank(Math.max(0.0, rank.getHoursInRank() - durationHours));
+                rankRepository.save(rank);
+            }
+        }
+
+        attendanceRepository.delete(record);
     }
 
     @Transactional(readOnly = true)

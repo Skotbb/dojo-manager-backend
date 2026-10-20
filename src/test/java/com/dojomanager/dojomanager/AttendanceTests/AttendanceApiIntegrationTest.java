@@ -19,11 +19,16 @@ import com.dojomanager.data.entities.dojo.Dojo;
 import com.dojomanager.data.entities.dojo.DojoOwner;
 import com.dojomanager.data.entities.schedule.DailySchedule;
 import com.dojomanager.data.entities.schedule.WeeklySchedule;
+import com.dojomanager.data.entities.rank.BeltColor;
+import com.dojomanager.data.entities.rank.RankLevel;
+import com.dojomanager.data.entities.rank.RankName;
+import com.dojomanager.data.entities.rank.RankSetting;
 import com.dojomanager.data.repositories.dojo.DojoRepository;
 import com.dojomanager.data.repositories.schedule.DailyScheduleRepository;
 import com.dojomanager.data.repositories.schedule.WeeklyScheduleRepository;
 import com.dojomanager.services.DojoOwnerService;
 import com.dojomanager.services.DojoService;
+import com.dojomanager.services.RankService;
 
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -75,6 +80,72 @@ class AttendanceApiIntegrationTest {
 
     @Autowired
     private WeeklyScheduleRepository weeklyScheduleRepository;
+
+    @Autowired
+    private RankService rankService;
+
+    @Test
+    void checkInAddsDurationToStudentHoursInRankAndDeletionRevertsIt() {
+        OwnerFixture owner = fixture("hours");
+        Dojo dojo = owner.dojo();
+
+        // 1. Setup rank for dojo
+        RankName rankName = rankService.saveRankName(new RankName("White Belt", dojo));
+        RankLevel rankLevel = rankService.saveRankLevel(new RankLevel(0, 1, 20, rankName));
+        BeltColor beltColor = rankService.saveBeltColor(new BeltColor("White", null, 0, rankLevel));
+        RankSetting rankSetting = rankService.saveRankSetting(new RankSetting(dojo, rankName, rankLevel, beltColor));
+
+        // 2. Create student assigned to this rank
+        Map<String, Object> sBody = new HashMap<>();
+        sBody.put("firstName", "Attendance");
+        sBody.put("lastName", "Tester");
+        sBody.put("email", unique("attend"));
+        sBody.put("rankId", rankSetting.getId());
+        sBody.put("dojoId", dojo.getId());
+
+        ResponseEntity<StudentDto> studentRes = rest.exchange(STUDENTS_URL, HttpMethod.POST,
+                authed(owner.token(), sBody), StudentDto.class);
+        assertEquals(HttpStatus.CREATED, studentRes.getStatusCode());
+        Long studentId = studentRes.getBody().getId();
+        assertEquals(0.0, studentRes.getBody().getHoursInRank());
+
+        // 3. Create weekly session of 1.5 hours duration (17:00 to 18:30)
+        WeeklySchedule weekly = new WeeklySchedule();
+        weekly.setDojo(dojo);
+        weekly.setDayOfWeek(DayOfWeek.MONDAY);
+        weekly.setStartTime(LocalTime.of(17, 0));
+        weekly.setEndTime(LocalTime.of(18, 30));
+        weekly.setTitle("Evening Karate");
+        weekly = weeklyScheduleRepository.save(weekly);
+
+        // 4. Check in student for this session
+        Map<String, Object> checkInBody = new HashMap<>();
+        checkInBody.put("studentId", studentId);
+        checkInBody.put("status", "PRESENT");
+        checkInBody.put("sessionId", weekly.getId());
+        checkInBody.put("date", SESSION_DATE.toString());
+
+        ResponseEntity<List<AttendanceRecordDto>> checkInRes = rest.exchange(ATTENDANCE_URL, HttpMethod.POST,
+                authed(owner.token(), checkInBody),
+                new ParameterizedTypeReference<List<AttendanceRecordDto>>() {});
+        assertEquals(HttpStatus.CREATED, checkInRes.getStatusCode());
+        Long recordId = checkInRes.getBody().get(0).getId();
+
+        // 5. Verify student has gained 1.5 hours
+        ResponseEntity<StudentDto> updatedStudent = rest.exchange(STUDENTS_URL + "/" + studentId,
+                HttpMethod.GET, authed(owner.token(), null), StudentDto.class);
+        assertEquals(HttpStatus.OK, updatedStudent.getStatusCode());
+        assertEquals(1.5, updatedStudent.getBody().getHoursInRank());
+
+        // 6. Delete attendance record and verify hours reverted
+        ResponseEntity<Void> deleteRes = rest.exchange(ATTENDANCE_URL + "/" + recordId,
+                HttpMethod.DELETE, authed(owner.token(), null), Void.class);
+        assertEquals(HttpStatus.NO_CONTENT, deleteRes.getStatusCode());
+
+        ResponseEntity<StudentDto> revertedStudent = rest.exchange(STUDENTS_URL + "/" + studentId,
+                HttpMethod.GET, authed(owner.token(), null), StudentDto.class);
+        assertEquals(0.0, revertedStudent.getBody().getHoursInRank());
+    }
 
     @Test
     void ownerCanCheckInListAndFetchAttendance() {

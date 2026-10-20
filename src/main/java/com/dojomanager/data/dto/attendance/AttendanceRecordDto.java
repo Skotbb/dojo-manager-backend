@@ -23,6 +23,7 @@ public class AttendanceRecordDto {
     private String studentName;
     private Long dojoId;
     private Long sessionId;
+    private Long weeklyScheduleId;
     private LocalDate sessionDate;
     private AttendanceStatus status;
     private Long recordedBy;
@@ -36,6 +37,8 @@ public class AttendanceRecordDto {
         dto.setStudentName(record.getStudent() == null ? null : studentName(record.getStudent()));
         dto.setDojoId(record.getDojo() == null ? null : record.getDojo().getId());
         dto.setSessionId(record.getSession() == null ? null : record.getSession().getId());
+        dto.setWeeklyScheduleId(record.getSession() == null || record.getSession().getWeeklySchedule() == null
+                ? null : record.getSession().getWeeklySchedule().getId());
         dto.setSessionDate(record.getSessionDate());
         dto.setStatus(record.getStatus());
         dto.setRecordedBy(record.getRecordedBy());
