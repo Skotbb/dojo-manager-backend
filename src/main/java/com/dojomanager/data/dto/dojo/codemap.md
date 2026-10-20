@@ -2,23 +2,26 @@
 
 ## Responsibility
 
-DTO Layer — dojo/owner API payloads: read wrapper for an owner's dojos, the dojo update body, and a legacy owner transfer object.
+DTO Layer — dojo/owner API payloads: flattened dojo reads, the owner profile response, and the dojo create/update body.
 
 ## Design
 
-- `DojoResponse` — plain POJO (no Lombok, manual ctor/getter/setter). Single field `List<com.dojomanager.data.entities.dojo.Dojo> dojos`. Null is used as the "owner not found" signal by callers. It serializes JPA `Dojo` entities directly (including `owner`/`address`/`leadInstructor`), so it is the one DTO here that does not flatten its entity graph; `Dojo.students` is `@JsonIgnore`d on the entity.
-- `DojoUpdateRequest` — plain POJO with `name`, `website`, `contact`, `address`. Fields are treated as optional: `DojoController.updateDojo` applies only non-null `name`, `website`, and `address` (wrapping the address string in `new Address(address, null, null, null, null)`). Notably `contact` is accepted but never applied to the `Dojo` entity (the entity has no contact field).
-- `OwnerDTO` — Lombok `@Data` with `firstName`, `lastName`, `email`, `password`. It is imported by `DojoOwnerController` but not referenced anywhere in the current code; treat it as a legacy/unused signup-shaped DTO.
-- No `jakarta.validation` annotations; controllers do not `@Valid` these bodies.
+- `DojoDto` — new flattened dojo response (Lombok-based) with `id`, `name`, `website`, and a flattened address; static `from(Dojo)` mapper. Never exposes the JPA entity graph.
+- `DojoResponse` — plain POJO wrapper. Single field `List<DojoDto> dojos` (changed from `List<Dojo>` — it no longer serializes entities directly). Constructed by `DojoController.getMyDojos`.
+- `OwnerResponse` — new flat owner profile response with `id`, names, email, and `managedDojos` as `DojoDto[]`; static `from(DojoOwner)` mapper. Replaces the raw `DojoOwner`/`Collection<Dojo>` responses the old `/owner` endpoints returned.
+- `DojoUpdateRequest` — plain POJO with `name`, `website`, `address`. Fields are optional (only non-null values are applied by `DojoService.applyRequest`, wrapping the address string in `new Address(address, null, null, null, null)`). The `contact` field was removed — the `Dojo` entity has no contact field, so it was accepted-but-never-applied dead weight.
+- `OwnerDTO` — deleted. It was a legacy, unused signup-shaped DTO (imported but never referenced).
+- No `jakarta.validation` annotations; the controller does not `@Valid` these bodies yet.
 
 ## Flow
 
-1. `GET /dojo/api/v1/dojo` → `DojoController.getMyDojo()` resolves the principal's email, loads the `DojoOwner`, and returns `new DojoResponse(List.copyOf(owner.getManagedDojos()))` (or `null` list when absent).
-2. `PUT /dojo/api/v1/dojo` → `DojoUpdateRequest` bound from JSON, selectively copied into a new `Dojo`, persisted via `DojoService.saveDojo`, and returned inside `DojoResponse`.
-3. `OwnerDTO` has no active flow.
+1. `GET /api/v1/dojos` → `DojoController.getMyDojos` maps each owned `Dojo` through `DojoDto::from` into `DojoResponse`.
+2. `POST /api/v1/dojos` → `DojoUpdateRequest` bound from JSON → `DojoService.createDojo` applies non-null fields → `DojoDto.from(created)` returned with `201 Created`.
+3. `PUT /api/v1/dojos/{id}` → same request shape → `DojoService.updateDojo` applies to an owned dojo → `DojoDto.from(updated)`.
+4. `GET /api/v1/owner` → `OwnerResponse.from(getOwnerProfile(principal))`, with `managedDojos` flattened to `DojoDto[]`.
 
 ## Integration
 
-- Consumed by `com.dojomanager.rest.v1.dojo.DojoController`; `OwnerDTO` is only imported by `com.dojomanager.rest.v1.dojo.DojoOwnerController` (unused).
-- Maps to/from `com.dojomanager.data.entities.dojo.Dojo` and `com.dojomanager.data.entities.people.Address`; reads `DojoOwner.getManagedDojos()`.
-- Services involved: `DojoService.saveDojo`, `DojoOwnerService.getOwnerByEmail`.
+- Consumed by `com.dojomanager.rest.v1.dojo.DojoController` (`DojoDto`, `DojoResponse`, `DojoUpdateRequest`) and `DojoOwnerController` (`OwnerResponse`).
+- Maps from `com.dojomanager.data.entities.dojo.Dojo` / `DojoOwner` and `com.dojomanager.data.entities.people.Address`.
+- Services involved: `DojoService` (`listDojos`/`createDojo`/`updateDojo` via `applyRequest`), `DojoOwnerService.getOwnerProfile`.

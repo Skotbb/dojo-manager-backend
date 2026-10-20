@@ -8,7 +8,7 @@ Form layer root — inbound request bodies with bean-validation constraints, val
 
 Direct classes:
 
-- `LoginForm` — Lombok `@Data`. `email` (`@NotBlank`, `@Size(min = 3, max = 60)` — note: no `@Email` here), `password` (`@NotBlank`, `@Size(min = 6, max = 128)`).
+- `LoginForm` — Lombok `@Data`. `email` (`@NotBlank`, `@Email`, `@Size(min = 3, max = 60)` — `@Email` added to match `SignupForm` standards), `password` (`@NotBlank`, `@Size(min = 6, max = 128)`).
 - `SignupForm` — Lombok `@Data`. `firstName` / `lastName` (`@NotBlank`, `@Size(min = 3)`), `email` (`@NotBlank`, `@Email`), `password` (`@NotBlank`, `@Size(min = 6, max = 128)`).
 - Subpackages group feature-specific forms:
   - `attendance/` — `AttendanceCheckInForm`, a single check-in request.

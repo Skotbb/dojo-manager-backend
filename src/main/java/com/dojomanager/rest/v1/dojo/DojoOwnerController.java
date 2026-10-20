@@ -1,65 +1,35 @@
 package com.dojomanager.rest.v1.dojo;
 
-import com.dojomanager.data.dto.dojo.OwnerDTO;
-import com.dojomanager.data.entities.dojo.Dojo;
-import com.dojomanager.data.entities.dojo.DojoOwner;
-import com.dojomanager.data.entities.people.Address;
-import com.dojomanager.data.entities.rank.BeltColor;
-import com.dojomanager.data.entities.rank.RankLevel;
-import com.dojomanager.data.entities.rank.RankName;
+import com.dojomanager.data.dto.dojo.OwnerResponse;
+import com.dojomanager.security.services.OwnerPrincipal;
 import com.dojomanager.services.DojoOwnerService;
 
-import java.util.Collection;
-import java.util.Collections;
-import java.util.List;
-import java.util.Optional;
-
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
-import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.security.core.userdetails.UserDetails;
-import org.springframework.security.core.context.SecurityContextHolder;
+import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.CrossOrigin;
 import org.springframework.web.bind.annotation.GetMapping;
-import org.springframework.web.bind.annotation.PathVariable;
-import org.springframework.web.bind.annotation.PostMapping;
-import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
-import org.springframework.web.bind.annotation.ResponseBody;
 import org.springframework.web.bind.annotation.RestController;
 
+import lombok.RequiredArgsConstructor;
+
+/**
+ * Profile of the authenticated dojo owner.
+ *
+ * <p>
+ * The owner is derived from the JWT principal; there is no path variable that
+ * would let a caller read another owner's dojos.
+ * </p>
+ */
 @RestController
 @CrossOrigin(origins = "http://localhost:4200", maxAge = 3600)
-@RequestMapping(path = "/owner")
+@RequestMapping(path = "/api/v1/owner")
+@RequiredArgsConstructor
 public class DojoOwnerController {
-    @Autowired
-    private DojoOwnerService ownerService;
 
-    private Logger logger = LoggerFactory.getLogger(DojoOwnerController.class);
+    private final DojoOwnerService ownerService;
 
-    private String currentUserEmail() {
-        UserDetails details = (UserDetails) SecurityContextHolder.getContext().getAuthentication();
-        return details.getUsername();
-    }
-
-    @GetMapping(value = "/{userId}")
-    public @ResponseBody Collection<Dojo> getDojos(@PathVariable(value = "userId") String email) {
-        Optional<DojoOwner> owner = ownerService.getOwnerByEmail(email);
-        if(owner.isPresent()) {
-            return owner.get().getManagedDojos();
-        } else {
-            logger.error("Could not find an owner with the Email %s", email);
-            return Collections.EMPTY_SET;
-        }
-    }
-
-    @GetMapping(path="/all")
-    public @ResponseBody Iterable<DojoOwner> getAllOwners() {
-        String email = currentUserEmail();
-        Optional<DojoOwner> owner = ownerService.getOwnerByEmail(email);
-        if (owner.isPresent()) {
-            return Collections.singletonList(owner.get());
-        }
-        return Collections.emptyList();
+    @GetMapping
+    public OwnerResponse getMyOwner(@AuthenticationPrincipal OwnerPrincipal principal) {
+        return OwnerResponse.from(ownerService.getOwnerProfile(principal));
     }
 }

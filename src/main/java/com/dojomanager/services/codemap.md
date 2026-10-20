@@ -6,7 +6,7 @@ Service layer — Spring-managed business logic for the dojo domain: students, a
 ## Design
 - Classes annotated `@Service`; split across two styles:
   - **Modern owner-scoped services** — `StudentService`, `AttendanceService`. Use Lombok `@RequiredArgsConstructor` constructor injection, `@Transactional` / `@Transactional(readOnly = true)` at method level, take `com.dojomanager.security.services.OwnerPrincipal`, and resolve the caller's `DojoOwner` through `DojoOwnerRepository` before every operation.
-  - **Legacy CRUD services** — `DojoOwnerService`, `DojoService`, `RankService`, `ScheduleService`, `AddressService`. Field injection via `@Autowired`, thin pass-through methods over repositories (`save`, `saveAndFlush`, `findById`, `findBy...`), often returning empty entities instead of throwing.
+  - **Mixed/legacy CRUD services** — `DojoOwnerService`, `DojoService`, `RankService`, `ScheduleService`, `AddressService`. Field injection via `@Autowired`, thin pass-through methods over repositories (`save`, `saveAndFlush`, `findById`, `findBy...`), often returning empty entities instead of throwing. Note: `DojoOwnerService` (`requireOwner`, `getOwnerProfile`) and `DojoService` (`listDojos`, `createDojo`, `updateDojo`) now also expose owner-scoped, `@Transactional` methods that take `OwnerPrincipal` directly — the `StudentService`-style pattern — used by the v1 dojo/owner controllers.
 - DTO mapping lives in the service: `StudentService.toDto` hand-builds `StudentDto` (including rank name/level from `RankSetting`); `AttendanceService.toDto` delegates to `AttendanceRecordDto.from(entity)`; `ScheduleService` maps `ScheduleSessionDTO` ↔ `WeeklySchedule`.
 - Ownership enforcement helpers in the owner-scoped services: `requireOwner`, `requireOwnedStudent`, `requireOwnedDojo`, `resolveTargetDojo`, `requireRankInDojo`, `verifySessionOwner`, `verifySessionDojo`. Unauthorized access to another owner's data is deliberately reported as `ResourceNotFoundException` (404) rather than 403 to avoid leaking existence.
 - Soft delete: `StudentService.deactivateStudent` sets `active = false` and preserves rank history.
@@ -24,8 +24,8 @@ Service layer — Spring-managed business logic for the dojo domain: students, a
 - **Consumers (controllers):**
   - `StudentController` → `StudentService`, `AttendanceService`.
   - `AttendanceController` → `AttendanceService`.
-  - `DojoController` → `DojoOwnerService`, `DojoService`, `RankService`.
-  - `DojoOwnerController` → `DojoOwnerService`.
+  - `DojoController` → `DojoService` (`listDojos`/`createDojo`/`updateDojo`, which in turn use `DojoOwnerService.requireOwner` and `AddressService.saveAddress`).
+  - `DojoOwnerController` → `DojoOwnerService.getOwnerProfile`.
   - `AuthorizationController` → `DojoOwnerService` (signup/email checks).
   - `ScheduleController` → `ScheduleService`.
   - `AddressService` and `RankService` write paths have no current controller callers (available for rank/address management endpoints).

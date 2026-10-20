@@ -16,7 +16,7 @@ Spring Boot 3.5 (Java 25) REST API for managing martial-arts dojos: owners sign 
 ## Architecture Summary
 - **Auth**: stateless JWT filter chain. `/api/auth/**` is permitAll; everything else requires a Bearer token. `JwtProvider` (HS512), `JwtAuthenticationTokenFilter` populates `SecurityContext` with `OwnerPrincipal`, `JwtAuthenticationEntryPoint` returns 401.
 - **Ownership model**: every business operation is scoped to the authenticated `DojoOwner`. Cross-owner access is reported as 404 (`ResourceNotFoundException`) to avoid leaking resource existence.
-- **API versioning**: modern endpoints live under `/api/v1/...`; the auth controller uses legacy `/api/auth`; some dojo/owner endpoints retain legacy mixed mappings (documented in the dojo REST map).
+- **API versioning**: modern endpoints live under `/api/v1/...`; the auth controller uses legacy `/api/auth`. The dojo/owner/schedule controllers were normalized to `/api/v1/dojos`, `/api/v1/owner`, and `/api/v1/schedules` with principal-derived identity and DTO-only responses (documented in the dojo REST map).
 - **Exceptions**: unchecked domain exceptions (`BadRequest` 400, `ForbiddenOperation` 403, `ResourceNotFound` 404, `DuplicateResource` 409) translated to JSON by per-controller `@RestControllerAdvice` handlers.
 
 ## Repository Directory Map
@@ -27,7 +27,7 @@ Spring Boot 3.5 (Java 25) REST API for managing martial-arts dojos: owners sign 
 | `src/main/java/com/dojomanager/rest/v1/` | API v1 overview — attendance, authorization, dojo, students subpackages (`/api/v1` convention) | [View Map](src/main/java/com/dojomanager/rest/v1/codemap.md) |
 | `src/main/java/com/dojomanager/rest/v1/attendance/` | `AttendanceController` (`/api/v1/attendance`) — check-in/history endpoints + scoped exception handler | [View Map](src/main/java/com/dojomanager/rest/v1/attendance/codemap.md) |
 | `src/main/java/com/dojomanager/rest/v1/authorization/` | `AuthorizationController` (`/api/auth`) — login/signup, JWT issuance | [View Map](src/main/java/com/dojomanager/rest/v1/authorization/codemap.md) |
-| `src/main/java/com/dojomanager/rest/v1/dojo/` | `DojoController`, `DojoOwnerController`, `ScheduleController` — dojo/owner/schedule endpoints (legacy mixed mappings) | [View Map](src/main/java/com/dojomanager/rest/v1/dojo/codemap.md) |
+| `src/main/java/com/dojomanager/rest/v1/dojo/` | `DojoController` (`/api/v1/dojos`), `DojoOwnerController` (`/api/v1/owner`), `ScheduleController` (`/api/v1/schedules`) — principal-scoped, DTO responses, `DojoApiExceptionHandler` | [View Map](src/main/java/com/dojomanager/rest/v1/dojo/codemap.md) |
 | `src/main/java/com/dojomanager/rest/v1/students/` | `StudentController` (`/api/v1/students`) — student CRUD, soft-delete, attendance history | [View Map](src/main/java/com/dojomanager/rest/v1/students/codemap.md) |
 | `src/main/java/com/dojomanager/services/` | Service layer — business logic, transaction/authorization boundary, DTO mapping | [View Map](src/main/java/com/dojomanager/services/codemap.md) |
 | `src/main/java/com/dojomanager/services/exceptions/` | Domain exceptions (400/403/404/409) consumed by `@RestControllerAdvice` handlers | [View Map](src/main/java/com/dojomanager/services/exceptions/codemap.md) |
@@ -50,7 +50,7 @@ Spring Boot 3.5 (Java 25) REST API for managing martial-arts dojos: owners sign 
 | `src/main/java/com/dojomanager/data/dto/` | Response/request DTOs root — `MessageResponse` + five subpackages | [View Map](src/main/java/com/dojomanager/data/dto/codemap.md) |
 | `src/main/java/com/dojomanager/data/dto/attendance/` | `AttendanceRecordDto` — null-safe static `from(entity)` mapping | [View Map](src/main/java/com/dojomanager/data/dto/attendance/codemap.md) |
 | `src/main/java/com/dojomanager/data/dto/authorization/` | `JwtResponse` (Bearer token + email) | [View Map](src/main/java/com/dojomanager/data/dto/authorization/codemap.md) |
-| `src/main/java/com/dojomanager/data/dto/dojo/` | `DojoResponse`, `DojoUpdateRequest`, legacy `OwnerDTO` | [View Map](src/main/java/com/dojomanager/data/dto/dojo/codemap.md) |
+| `src/main/java/com/dojomanager/data/dto/dojo/` | `DojoDto`, `DojoResponse`, `OwnerResponse`, `DojoUpdateRequest` — flat dojo/owner payloads (legacy `OwnerDTO` removed) | [View Map](src/main/java/com/dojomanager/data/dto/dojo/codemap.md) |
 | `src/main/java/com/dojomanager/data/dto/schedule/` | `ScheduleSessionDTO` — string-typed day/times with `@JsonProperty` | [View Map](src/main/java/com/dojomanager/data/dto/schedule/codemap.md) |
 | `src/main/java/com/dojomanager/data/dto/student/` | `StudentDto` — rank name/level/hours projection built by `StudentService.toDto` | [View Map](src/main/java/com/dojomanager/data/dto/student/codemap.md) |
 | `src/main/java/com/dojomanager/data/forms/` | Validated request forms — `LoginForm`, `SignupForm` + subpackages | [View Map](src/main/java/com/dojomanager/data/forms/codemap.md) |

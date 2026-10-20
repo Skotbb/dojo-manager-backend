@@ -1,34 +1,31 @@
 # src/main/java/com/dojomanager/rest/v1/dojo/
 
 ## Responsibility
-REST API v1 — dojo profile management, dojo-owner lookup, and weekly schedule management. Contains three controllers with mixed (partly legacy) routing conventions.
+REST API v1 — dojo management, authenticated owner profile, and weekly schedule management. All three controllers now follow the `/api/v1/...` convention with principal-derived identity.
 
 ## Design
-- `DojoController` — legacy `@Controller` + `@ResponseBody`, class mapping `@RequestMapping(path = "/dojo")` but methods declare absolute paths:
-  - `GET /api/v1/dojo` → `getMyDojo()`.
-  - `PUT /api/v1/dojo` → `updateDojo(@RequestBody DojoUpdateRequest)`.
-  - Field-injects `DojoOwnerService`, `DojoService`, `RankService` (RankService currently unused); reads the caller's email from `SecurityContextHolder.getContext().getAuthentication()`.
-- `DojoOwnerController` — `@RestController`, `@CrossOrigin(origins = "http://localhost:4200", maxAge = 3600)`, `@RequestMapping(path = "/owner")`:
-  - `GET /owner/{userId}` → `getDojos(@PathVariable String email)`; the path variable is used as an email.
-  - `GET /owner/all` → `getAllOwners()`; despite the name, it returns only the caller's own `DojoOwner`.
-  - Field-injects `DojoOwnerService`.
-- `ScheduleController` — `@RestController`, `@RequestMapping(path = "/schedules")`, field-injects `ScheduleService`:
-  - `POST /schedules`, `PUT /schedules/{id}`, `DELETE /schedules/{id}`, `GET /schedules/week`.
-  - No `@CrossOrigin`, no `@Valid`, and no explicit owner parameter — a legacy, not-yet-owner-scoped surface.
-- Identity convention is inconsistent: `DojoController` and `DojoOwnerController.getAllOwners` use the JWT-derived `SecurityContext`, while `/owner/{userId}` trusts an email from the URL.
-- Responses in `DojoController`/`DojoOwnerController` expose JPA entities (`Dojo`, `DojoOwner`), unlike the DTO-based `students/` and `attendance/` packages.
+- `DojoController` — `@RestController`, `@CrossOrigin(origins = "http://localhost:4200", maxAge = 3600)`, `@RequestMapping(path = "/api/v1/dojos")`, constructor-injects `DojoService` via `@RequiredArgsConstructor`:
+  - `GET /api/v1/dojos` → `getMyDojos(@AuthenticationPrincipal OwnerPrincipal)` → `DojoResponse` of `DojoDto`.
+  - `POST /api/v1/dojos` → `createDojo(principal, DojoUpdateRequest)` → `201 Created` `DojoDto`.
+  - `PUT /api/v1/dojos/{id}` → `updateDojo(principal, id, DojoUpdateRequest)` → `DojoDto`; a foreign/missing dojo is reported as 404.
+- `DojoOwnerController` — `@RestController`, `@CrossOrigin`, `@RequestMapping(path = "/api/v1/owner")`:
+  - `GET /api/v1/owner` → `getMyOwner(principal)` → `OwnerResponse` (owner + flattened managed dojos).
+  - The legacy `GET /owner/{userId}` (email trusted from the path) and `GET /owner/all` are removed; there is no path variable that can select another owner.
+- `ScheduleController` — `@RestController`, `@RequestMapping(path = "/api/v1/schedules")` (path normalized only; service contract unchanged):
+  - `POST /api/v1/schedules`, `PUT /api/v1/schedules/{id}`, `DELETE /api/v1/schedules/{id}`, `GET /api/v1/schedules/week`.
+  - Still no `@CrossOrigin`/`@Valid` and not yet owner-scoped — a known legacy surface.
+- `DojoApiExceptionHandler` — `@RestControllerAdvice(assignableTypes = {DojoController, DojoOwnerController})`: maps `ResourceNotFoundException` → 404, `ForbiddenOperationException` → 403, `HttpMessageNotReadableException` → 400. Without it, a missing dojo surfaced as a 500.
+- Responses are DTOs only (`DojoDto`, `DojoResponse`, `OwnerResponse`) — no raw JPA entity bodies.
 
 ## Flow
-- `GET /api/v1/dojo` → email from `SecurityContext` → `ownerService.getOwnerByEmail(email)` → `DojoResponse(List.copyOf(owner.getManagedDojos()))`; empty owner → `DojoResponse(null)`.
-- `PUT /api/v1/dojo` + `DojoUpdateRequest` → resolve owner → build a new `Dojo` from `name`, `website`, `address` (the `contact` field is accepted but ignored; `address` becomes `Address(address, null, null, null, null)`) → `dojoService.saveDojo(dojo)` → `DojoResponse(List.of(dojo))`. Note: the new dojo is not linked to the owner here.
-- `GET /owner/{email}` → `ownerService.getOwnerByEmail(email)` → `Collection<Dojo>` of managed dojos, or an empty set.
-- `GET /owner/all` → caller's email → `getOwnerByEmail` → singleton list of that owner (not all owners).
-- `POST /schedules` + `ScheduleSessionDTO` → `scheduleService.saveSession(dto)` → `201 Created` with saved `ScheduleSessionDTO`.
-- `PUT /schedules/{id}` + `ScheduleSessionDTO` → `scheduleService.updateSession(id, dto)` → `200 OK`, or `404 Not Found` when the service returns `null`.
-- `DELETE /schedules/{id}` → `scheduleService.deleteSession(id)` → `200 OK` with empty body.
-- `GET /schedules/week` → `scheduleService.getWeekView()` → `ResponseEntity<Map<String, List<WeeklySchedule>>>`.
+- `GET /api/v1/dojos` → `DojoService.listDojos(principal)` (owner resolved via `DojoOwnerService.requireOwner`) → `DojoDto::from` per dojo → `DojoResponse`.
+- `POST /api/v1/dojos` → `DojoService.createDojo(principal, request)` builds a `Dojo`, applies `name`/`website`/`address`, sets the authenticated owner, persists → `201 Created`.
+- `PUT /api/v1/dojos/{id}` → `DojoService.updateDojo(principal, id, request)` filters the principal's own dojos (foreign id → `ResourceNotFoundException` → 404 via handler) → applies fields → saved.
+- `GET /api/v1/owner` → `DojoOwnerService.getOwnerProfile(principal)` (`@Transactional(readOnly = true)`, initializes `managedDojos`) → `OwnerResponse.from(...)`.
+- Schedule endpoints unchanged apart from path: `POST` → `saveSession` → 201; `PUT /{id}` → `updateSession` → 200/404; `DELETE /{id}` → `deleteSession` → 200; `GET /week` → `getWeekView` → `Map<String, List<WeeklySchedule>>`.
 
 ## Integration
-- Services: `DojoOwnerService` (`getOwnerByEmail`), `DojoService` (`saveDojo`), `RankService` (injected, unused), `ScheduleService` (`saveSession`, `updateSession`, `deleteSession`, `getWeekView`).
-- Payloads/types: `DojoUpdateRequest`, `DojoResponse`, `OwnerDTO` (declared but not used by these controllers), `ScheduleSessionDTO`, and entities `Dojo`, `DojoOwner`, `Address`, `WeeklySchedule`.
-- Security: every route requires authentication except `/api/auth/**`; `WebSecurityConfig` defines no role rules, so any authenticated owner can call the schedule endpoints. Owner identity normally comes from the JWT (`OwnerPrincipal` in the context); `/owner/{userId}` is the exception, taking the email from the path.
+- Services: `DojoService` (`listDojos`, `createDojo`, `updateDojo`), `DojoOwnerService` (`requireOwner`, `getOwnerProfile`), `ScheduleService` (`saveSession`, `updateSession`, `deleteSession`, `getWeekView`).
+- Payloads/types: `DojoUpdateRequest`, `DojoResponse`, `DojoDto`, `OwnerResponse`, `ScheduleSessionDTO`.
+- Security: all routes require authentication (`/api/auth/**` is the only permitAll); owner identity always comes from `@AuthenticationPrincipal OwnerPrincipal`. Errors mapped by `DojoApiExceptionHandler`.
+- UI consumer: `dojo-manager-ui` `DojoService` (`getMyDojoOwner`, `submitNewDojo`) calls `GET /api/v1/owner` and `POST /api/v1/dojos`.

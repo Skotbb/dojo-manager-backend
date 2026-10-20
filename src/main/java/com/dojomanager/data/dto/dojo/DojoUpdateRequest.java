@@ -1,9 +1,16 @@
 package com.dojomanager.data.dto.dojo;
 
+/**
+ * Body for creating or updating a dojo.
+ *
+ * <p>
+ * The legacy {@code contact} field was removed: the {@code Dojo} entity has no
+ * contact field, so it was accepted and silently discarded.
+ * </p>
+ */
 public class DojoUpdateRequest {
     private String name;
     private String website;
-    private String contact;
     private String address;
 
     public String getName() {
@@ -20,14 +27,6 @@ public class DojoUpdateRequest {
 
     public void setWebsite(String website) {
         this.website = website;
-    }
-
-    public String getContact() {
-        return contact;
-    }
-
-    public void setContact(String contact) {
-        this.contact = contact;
     }
 
     public String getAddress() {

@@ -1,85 +1,69 @@
 package com.dojomanager.rest.v1.dojo;
 
+import java.util.List;
+
+import com.dojomanager.data.dto.dojo.DojoDto;
 import com.dojomanager.data.dto.dojo.DojoResponse;
 import com.dojomanager.data.dto.dojo.DojoUpdateRequest;
 import com.dojomanager.data.entities.dojo.Dojo;
-import com.dojomanager.data.entities.dojo.DojoOwner;
-import com.dojomanager.data.entities.people.Address;
-import com.dojomanager.data.entities.rank.BeltColor;
-import com.dojomanager.data.entities.rank.RankLevel;
-import com.dojomanager.data.entities.rank.RankName;
-import com.dojomanager.services.DojoOwnerService;
+import com.dojomanager.security.services.OwnerPrincipal;
 import com.dojomanager.services.DojoService;
-import com.dojomanager.services.RankService;
-import java.util.List;
-import java.util.Optional;
 
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
-import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.dao.DuplicateKeyException;
-import org.springframework.security.core.userdetails.UserDetails;
-import org.springframework.security.core.context.SecurityContextHolder;
-import org.springframework.stereotype.Controller;
+import org.springframework.http.HttpStatus;
+import org.springframework.http.ResponseEntity;
+import org.springframework.security.core.annotation.AuthenticationPrincipal;
+import org.springframework.web.bind.annotation.CrossOrigin;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
-import org.springframework.web.bind.annotation.ResponseBody;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RestController;
 
+import lombok.RequiredArgsConstructor;
 
-@Controller
-@RequestMapping(path = "/dojo")
+/**
+ * Dojo management for the authenticated owner.
+ *
+ * <p>
+ * The owner is always taken from the JWT principal; no request path or body can
+ * select another owner. Responses are DTOs rather than JPA entities.
+ * </p>
+ */
+@RestController
+@CrossOrigin(origins = "http://localhost:4200", maxAge = 3600)
+@RequestMapping(path = "/api/v1/dojos")
+@RequiredArgsConstructor
 public class DojoController {
 
-    @Autowired
-    private DojoOwnerService ownerService;
-    @Autowired
-    private DojoService dojoService;
-    @Autowired
-    private RankService rankService;
+    private final DojoService dojoService;
 
-    private Logger logger = LoggerFactory.getLogger(DojoController.class);
+    @GetMapping
+    public DojoResponse getMyDojos(@AuthenticationPrincipal OwnerPrincipal principal) {
+        List<DojoDto> dojos = dojoService.listDojos(principal).stream()
+                .map(DojoDto::from)
+                .toList();
 
-    private String currentUserEmail() {
-        UserDetails details = (UserDetails) SecurityContextHolder.getContext().getAuthentication();
-        return details.getUsername();
+        return new DojoResponse(dojos);
     }
 
-    @GetMapping(value = "/api/v1/dojo")
-    public @ResponseBody DojoResponse getMyDojo() {
-        String email = currentUserEmail();
-        Optional<DojoOwner> ownerOpt = ownerService.getOwnerByEmail(email);
-        if (ownerOpt.isEmpty()) {
-            return new DojoResponse(null);
-        }
-        DojoOwner owner = ownerOpt.get();
-        return new DojoResponse(List.copyOf(owner.getManagedDojos()));
+    @PostMapping
+    public ResponseEntity<DojoDto> createDojo(
+            @AuthenticationPrincipal OwnerPrincipal principal,
+            @RequestBody DojoUpdateRequest request) {
+
+        Dojo created = dojoService.createDojo(principal, request);
+
+        return ResponseEntity.status(HttpStatus.CREATED).body(DojoDto.from(created));
     }
 
-    @PutMapping("/api/v1/dojo")
-    public @ResponseBody DojoResponse updateDojo(@RequestBody DojoUpdateRequest request) {
-        String email = currentUserEmail();
-        Optional<DojoOwner> ownerOpt = ownerService.getOwnerByEmail(email);
-        if (ownerOpt.isEmpty()) {
-            return new DojoResponse(null);
-        }
-        DojoOwner owner = ownerOpt.get();
-        Dojo dojo = new Dojo();
-        if (request.getName() != null) {
-            dojo.setName(request.getName());
-        }
-        if (request.getWebsite() != null) {
-            dojo.setWebsite(request.getWebsite());
-        }
-        if (request.getAddress() != null) {
-            dojo.setAddress(new Address(request.getAddress(), null, null, null, null));
-        }
-        dojoService.saveDojo(dojo);
-        return new DojoResponse(List.of(dojo));
-    }
+    @PutMapping("/{id}")
+    public DojoDto updateDojo(
+            @AuthenticationPrincipal OwnerPrincipal principal,
+            @PathVariable("id") Long id,
+            @RequestBody DojoUpdateRequest request) {
 
-    private void loggerError(String msg) {
-        logger.error(msg);
+        return DojoDto.from(dojoService.updateDojo(principal, id, request));
     }
 }

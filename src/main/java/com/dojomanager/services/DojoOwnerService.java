@@ -10,6 +10,8 @@ import jakarta.persistence.EntityManager;
 import com.dojomanager.data.entities.dojo.Dojo;
 import com.dojomanager.data.entities.dojo.DojoOwner;
 import com.dojomanager.data.repositories.dojo.*;
+import com.dojomanager.security.services.OwnerPrincipal;
+import com.dojomanager.services.exceptions.ForbiddenOperationException;
 import com.google.common.collect.Lists;
 
 import org.slf4j.Logger;
@@ -17,6 +19,7 @@ import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.security.core.userdetails.UsernameNotFoundException;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 @Service
 public class DojoOwnerService {
@@ -36,6 +39,31 @@ public class DojoOwnerService {
 
     public Optional<DojoOwner> getOwnerByEmail(String email) throws UsernameNotFoundException{
         return ownerRepo.findByEmail(email.toLowerCase());
+    }
+
+    /**
+     * Resolves the authenticated owner. Identity always comes from the JWT
+     * principal, never from a request path or body.
+     */
+    public DojoOwner requireOwner(OwnerPrincipal principal) {
+        if (principal == null || principal.getId() == null) {
+            throw new ForbiddenOperationException("An authenticated dojo owner is required");
+        }
+
+        return ownerRepo.findById(principal.getId())
+                .orElseThrow(() -> new ForbiddenOperationException("Authenticated account no longer exists"));
+    }
+
+    /**
+     * Loads the authenticated owner together with its managed dojos, so the
+     * response can be mapped to a DTO without touching a detached lazy
+     * collection.
+     */
+    @Transactional(readOnly = true)
+    public DojoOwner getOwnerProfile(OwnerPrincipal principal) {
+        DojoOwner owner = requireOwner(principal);
+        owner.getManagedDojos().size();
+        return owner;
     }
 
     public boolean doesEmailExist(String email) {

@@ -12,7 +12,7 @@ import java.util.List;
 import java.util.Map;
 
 @RestController
-@RequestMapping(path = "/schedules")
+@RequestMapping(path = "/api/v1/schedules")
 public class ScheduleController {
 
     @Autowired
