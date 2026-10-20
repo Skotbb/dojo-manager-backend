@@ -49,6 +49,34 @@ public class RankService {
         return rankRepo.save(rank);
     }
 
+    public Optional<RankName> findRankNameById(Long id) {
+        return rankNameRepo.findById(id);
+    }
+
+    public List<RankSetting> findSettingsByRankName(RankName rankName) {
+        return settingRepo.findByRankName(rankName);
+    }
+
+    public boolean isRankSettingAssigned(RankSetting setting) {
+        return rankRepo.existsByRankSetting(setting);
+    }
+
+    public void deleteRankSetting(RankSetting setting) {
+        settingRepo.delete(setting);
+    }
+
+    public void deleteBeltColor(BeltColor belt) {
+        beltRepo.delete(belt);
+    }
+
+    public void deleteRankLevel(RankLevel rankLevel) {
+        rankLevelRepo.delete(rankLevel);
+    }
+
+    public void deleteRankName(RankName rankName) {
+        rankNameRepo.delete(rankName);
+    }
+
     public List<RankSetting> getRankSettingsByDojo(Dojo dojo) {
         Optional<List<RankSetting>> optional = settingRepo.findByDojo(dojo);
 

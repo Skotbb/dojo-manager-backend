@@ -32,7 +32,12 @@ public class StudentDto {
 
     /** Current rank instance, {@code null} when the student has no rank yet. */
     private Long rankId;
+    private Long rankSettingId;
     private String currentRankName;
     private Integer currentRankLevel;
+    private String currentBeltColor;
+    private String currentStripeColor;
+    private Integer currentStripeCount;
     private Double hoursInRank;
+    private Integer hoursRequired;
 }

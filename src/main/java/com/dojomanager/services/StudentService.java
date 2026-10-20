@@ -1,5 +1,6 @@
 package com.dojomanager.services;
 
+import java.util.Comparator;
 import java.util.List;
 import java.util.Locale;
 import java.util.Optional;
@@ -15,6 +16,8 @@ import com.dojomanager.data.repositories.dojo.DojoOwnerRepository;
 import com.dojomanager.data.repositories.dojo.DojoRepository;
 import com.dojomanager.data.repositories.people.StudentRepository;
 import com.dojomanager.data.repositories.rank.RankRepository;
+import com.dojomanager.data.repositories.rank.RankSettingRepository;
+import com.dojomanager.services.exceptions.BadRequestException;
 import com.dojomanager.services.exceptions.DuplicateResourceException;
 import com.dojomanager.services.exceptions.ForbiddenOperationException;
 import com.dojomanager.services.exceptions.ResourceNotFoundException;
@@ -43,6 +46,7 @@ public class StudentService {
     private final DojoRepository dojoRepository;
     private final DojoOwnerRepository dojoOwnerRepository;
     private final RankRepository rankRepository;
+    private final RankSettingRepository rankSettingRepository;
 
     @Transactional(readOnly = true)
     public List<StudentDto> listStudents(OwnerPrincipal principal, Long dojoId, Boolean active) {
@@ -124,6 +128,88 @@ public class StudentService {
         return toDto(studentRepository.save(student));
     }
 
+    /**
+     * Adds training hours to the student's current rank.
+     */
+    @Transactional
+    public StudentDto addHours(OwnerPrincipal principal, Long studentId, double hours) {
+        if (hours <= 0) {
+            throw new BadRequestException("Hours to add must be positive");
+        }
+        Student student = requireOwnedStudent(principal, studentId);
+        StudentRank rank = student.getRank();
+        if (rank == null) {
+            throw new BadRequestException("Student has no rank assigned yet");
+        }
+        rank.setHoursInRank(rank.getHoursInRank() + hours);
+        rankRepository.save(rank);
+        return toDto(studentRepository.save(student));
+    }
+
+    /**
+     * Assigns a specific rank setting to a student with initial hours.
+     */
+    @Transactional
+    public StudentDto assignRank(OwnerPrincipal principal, Long studentId, Long rankSettingId, Double hours) {
+        Student student = requireOwnedStudent(principal, studentId);
+        RankSetting setting = rankSettingRepository.findById(rankSettingId)
+                .orElseThrow(() -> new ResourceNotFoundException("RankSetting " + rankSettingId + " was not found"));
+
+        if (!student.getDojo().getId().equals(setting.getDojo().getId())) {
+            throw new ForbiddenOperationException("Rank setting does not belong to the student's dojo");
+        }
+
+        StudentRank rank = student.getRank();
+        if (rank == null) {
+            rank = new StudentRank(hours != null ? hours : 0.0, setting);
+        } else {
+            rank.setRankSetting(setting);
+            if (hours != null) {
+                rank.setHoursInRank(hours);
+            }
+        }
+        student.setRank(rankRepository.save(rank));
+        return toDto(studentRepository.save(student));
+    }
+
+    /**
+     * Promotes a student to a target rank setting, or the next rank in the ladder.
+     */
+    @Transactional
+    public StudentDto promoteStudent(OwnerPrincipal principal, Long studentId, Long targetRankSettingId) {
+        Student student = requireOwnedStudent(principal, studentId);
+        RankSetting nextSetting;
+
+        if (targetRankSettingId != null) {
+            nextSetting = rankSettingRepository.findById(targetRankSettingId)
+                    .orElseThrow(() -> new ResourceNotFoundException("RankSetting " + targetRankSettingId + " was not found"));
+            if (!student.getDojo().getId().equals(nextSetting.getDojo().getId())) {
+                throw new ForbiddenOperationException("Target rank does not belong to the student's dojo");
+            }
+        } else {
+            List<RankSetting> settings = rankSettingRepository.findByDojo(student.getDojo()).orElse(List.of());
+            StudentRank currentRank = student.getRank();
+            int currentSortOrder = (currentRank != null && currentRank.getRankSetting() != null && currentRank.getRankSetting().getRankLevel() != null)
+                    ? currentRank.getRankSetting().getRankLevel().getSortOrder()
+                    : -1;
+
+            nextSetting = settings.stream()
+                    .filter(rs -> rs.getRankLevel() != null && rs.getRankLevel().getSortOrder() > currentSortOrder)
+                    .min(Comparator.comparingInt(rs -> rs.getRankLevel().getSortOrder()))
+                    .orElseThrow(() -> new BadRequestException("Student is already at the highest configured rank"));
+        }
+
+        StudentRank rank = student.getRank();
+        if (rank == null) {
+            rank = new StudentRank(0.0, nextSetting);
+        } else {
+            rank.setRankSetting(nextSetting);
+            rank.setHoursInRank(0.0);
+        }
+        student.setRank(rankRepository.save(rank));
+        return toDto(studentRepository.save(student));
+    }
+
     private DojoOwner requireOwner(OwnerPrincipal principal) {
         if (principal == null || principal.getId() == null) {
             throw new ForbiddenOperationException("An authenticated dojo owner is required");
@@ -172,18 +258,30 @@ public class StudentService {
     }
 
     private StudentRank requireRankInDojo(Dojo dojo, Long rankId) {
-        StudentRank rank = rankRepository.findById(rankId)
+        Optional<StudentRank> existingRank = rankRepository.findById(rankId);
+        if (existingRank.isPresent()) {
+            StudentRank rank = existingRank.get();
+            RankSetting setting = rank.getRankSetting();
+            Long rankDojoId = setting == null || setting.getDojo() == null ? null : setting.getDojo().getId();
+
+            if (!dojo.getId().equals(rankDojoId)) {
+                throw new ForbiddenOperationException(
+                        "Rank " + rankId + " does not belong to dojo " + dojo.getId());
+            }
+            return rank;
+        }
+
+        RankSetting setting = rankSettingRepository.findById(rankId)
                 .orElseThrow(() -> new ResourceNotFoundException("Rank " + rankId + " was not found"));
 
-        RankSetting setting = rank.getRankSetting();
-        Long rankDojoId = setting == null || setting.getDojo() == null ? null : setting.getDojo().getId();
-
+        Long rankDojoId = setting.getDojo() == null ? null : setting.getDojo().getId();
         if (!dojo.getId().equals(rankDojoId)) {
             throw new ForbiddenOperationException(
                     "Rank " + rankId + " does not belong to dojo " + dojo.getId());
         }
 
-        return rank;
+        StudentRank studentRank = new StudentRank(0.0, setting);
+        return rankRepository.save(studentRank);
     }
 
     private String normaliseEmail(String email) {
@@ -208,11 +306,18 @@ public class StudentService {
 
             RankSetting setting = rank.getRankSetting();
             if (setting != null) {
+                builder.rankSettingId(setting.getId());
                 if (setting.getRankName() != null) {
                     builder.currentRankName(setting.getRankName().getName());
                 }
                 if (setting.getRankLevel() != null) {
                     builder.currentRankLevel(setting.getRankLevel().getNumber());
+                    builder.hoursRequired(setting.getRankLevel().getHoursRequired());
+                }
+                if (setting.getBeltColor() != null) {
+                    builder.currentBeltColor(setting.getBeltColor().getColor());
+                    builder.currentStripeColor(setting.getBeltColor().getStripeColor());
+                    builder.currentStripeCount(setting.getBeltColor().getStripeCount());
                 }
             }
         });

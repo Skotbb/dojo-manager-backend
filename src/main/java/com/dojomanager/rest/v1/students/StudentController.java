@@ -1,6 +1,7 @@
 package com.dojomanager.rest.v1.students;
 
 import java.util.List;
+import java.util.Map;
 
 import com.dojomanager.data.dto.attendance.AttendanceRecordDto;
 import com.dojomanager.data.dto.student.StudentDto;
@@ -97,5 +98,39 @@ public class StudentController {
             @AuthenticationPrincipal OwnerPrincipal principal,
             @PathVariable("id") Long id) {
         return attendanceService.findByStudent(principal, id);
+    }
+
+    @PostMapping("/{id}/hours")
+    public StudentDto addHours(
+            @AuthenticationPrincipal OwnerPrincipal principal,
+            @PathVariable("id") Long id,
+            @RequestBody Map<String, Object> body) {
+        Number hours = (Number) body.getOrDefault("hours", 0);
+        return studentService.addHours(principal, id, hours.doubleValue());
+    }
+
+    @PostMapping("/{id}/rank")
+    public StudentDto assignRank(
+            @AuthenticationPrincipal OwnerPrincipal principal,
+            @PathVariable("id") Long id,
+            @RequestBody Map<String, Object> body) {
+        Number rankSettingId = (Number) body.get("rankSettingId");
+        if (rankSettingId == null) {
+            throw new com.dojomanager.services.exceptions.BadRequestException("rankSettingId is required");
+        }
+        Number hours = (Number) body.get("hours");
+        return studentService.assignRank(principal, id, rankSettingId.longValue(), hours != null ? hours.doubleValue() : 0.0);
+    }
+
+    @PostMapping("/{id}/promote")
+    public StudentDto promoteStudent(
+            @AuthenticationPrincipal OwnerPrincipal principal,
+            @PathVariable("id") Long id,
+            @RequestBody(required = false) Map<String, Object> body) {
+        Long targetRankSettingId = null;
+        if (body != null && body.get("rankSettingId") != null) {
+            targetRankSettingId = ((Number) body.get("rankSettingId")).longValue();
+        }
+        return studentService.promoteStudent(principal, id, targetRankSettingId);
     }
 }

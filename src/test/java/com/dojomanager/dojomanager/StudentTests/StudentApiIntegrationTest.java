@@ -231,6 +231,47 @@ class StudentApiIntegrationTest {
     // helpers
     // ------------------------------------------------------------------
 
+    @Test
+    void ownerCanAddHoursAndPromoteStudent() {
+        OwnerFixture fixture = fixture("promote");
+        Dojo dojo = fixture.dojo();
+
+        // Configure 2 ranks
+        RankName rank1 = rankService.saveRankName(new RankName("White Belt", dojo));
+        RankLevel level1 = rankService.saveRankLevel(new RankLevel(0, 1, 10, rank1));
+        BeltColor belt1 = rankService.saveBeltColor(new BeltColor("White", null, 0, level1));
+        RankSetting setting1 = rankService.saveRankSetting(new RankSetting(dojo, rank1, level1, belt1));
+
+        RankName rank2 = rankService.saveRankName(new RankName("Yellow Belt", dojo));
+        RankLevel level2 = rankService.saveRankLevel(new RankLevel(1, 2, 20, rank2));
+        BeltColor belt2 = rankService.saveBeltColor(new BeltColor("Yellow", null, 0, level2));
+        RankSetting setting2 = rankService.saveRankSetting(new RankSetting(dojo, rank2, level2, belt2));
+
+        // Create student with rank1
+        Map<String, Object> body = studentBody("Karate", "Kid", "kid-" + UUID.randomUUID() + "@example.com",
+                setting1.getId(), dojo.getId());
+        ResponseEntity<StudentDto> created = rest.exchange(STUDENTS_URL, HttpMethod.POST,
+                authed(fixture.token(), body), StudentDto.class);
+        assertEquals(HttpStatus.CREATED, created.getStatusCode());
+        Long studentId = created.getBody().getId();
+        assertEquals("White Belt", created.getBody().getCurrentRankName());
+        assertEquals(0.0, created.getBody().getHoursInRank());
+
+        // Add 5 hours
+        Map<String, Object> hoursBody = Map.of("hours", 5.5);
+        ResponseEntity<StudentDto> hoursRes = rest.exchange(STUDENTS_URL + "/" + studentId + "/hours",
+                HttpMethod.POST, authed(fixture.token(), hoursBody), StudentDto.class);
+        assertEquals(HttpStatus.OK, hoursRes.getStatusCode());
+        assertEquals(5.5, hoursRes.getBody().getHoursInRank());
+
+        // Promote to next rank
+        ResponseEntity<StudentDto> promoteRes = rest.exchange(STUDENTS_URL + "/" + studentId + "/promote",
+                HttpMethod.POST, authed(fixture.token(), null), StudentDto.class);
+        assertEquals(HttpStatus.OK, promoteRes.getStatusCode());
+        assertEquals("Yellow Belt", promoteRes.getBody().getCurrentRankName());
+        assertEquals(0.0, promoteRes.getBody().getHoursInRank());
+    }
+
     private record OwnerFixture(DojoOwner owner, Dojo dojo, String token) {
     }
 

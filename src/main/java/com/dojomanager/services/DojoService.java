@@ -23,6 +23,8 @@ import com.dojomanager.data.entities.rank.RankName;
 import com.dojomanager.data.entities.rank.RankSetting;
 import com.dojomanager.data.repositories.dojo.*;
 import com.dojomanager.security.services.OwnerPrincipal;
+import com.dojomanager.services.exceptions.BadRequestException;
+import com.dojomanager.services.exceptions.ForbiddenOperationException;
 import com.dojomanager.services.exceptions.ResourceNotFoundException;
 import com.google.common.collect.Sets;
 
@@ -119,6 +121,100 @@ public class DojoService {
         Dojo dojo = requireOwnedDojo(principal, dojoId);
         persistRanks(dojo, ranks);
         return buildRankDtos(dojo);
+    }
+
+    @Transactional
+    public RankDto updateRank(OwnerPrincipal principal, Long dojoId, Long rankId, CreateDojoRequest.RankRequest request) {
+        Dojo dojo = requireOwnedDojo(principal, dojoId);
+        RankName rankName = rankService.findRankNameById(rankId)
+                .orElseThrow(() -> new ResourceNotFoundException("Rank " + rankId + " was not found"));
+
+        if (!dojo.getId().equals(rankName.getDojo().getId())) {
+            throw new ForbiddenOperationException("Rank does not belong to the owned dojo");
+        }
+
+        if (request.getName() != null && !request.getName().isBlank()) {
+            rankName.setName(request.getName());
+            rankService.saveRankName(rankName);
+        }
+
+        List<RankSetting> existingSettings = rankService.findSettingsByRankName(rankName);
+        List<CreateDojoRequest.RankLevelRequest> levelRequests = request.getLevels() != null ? request.getLevels() : List.of();
+
+        for (int i = 0; i < levelRequests.size(); i++) {
+            CreateDojoRequest.RankLevelRequest req = levelRequests.get(i);
+            if (i < existingSettings.size()) {
+                RankSetting setting = existingSettings.get(i);
+                RankLevel level = setting.getRankLevel();
+                if (level != null) {
+                    level.setSortOrder(req.getSortOrder());
+                    level.setNumber(req.getNumber());
+                    level.setHoursRequired(req.getHoursRequired());
+                    rankService.saveRankLevel(level);
+                }
+
+                BeltColor belt = setting.getBeltColor();
+                if (belt != null) {
+                    belt.setColor(req.getBeltColor());
+                    belt.setStripeColor(req.getStripeColor());
+                    belt.setStripeCount(req.getStripeCount());
+                    rankService.saveBeltColor(belt);
+                }
+            } else {
+                RankLevel rankLevel = rankService.saveRankLevel(new RankLevel(
+                        req.getSortOrder(), req.getNumber(), req.getHoursRequired(), rankName));
+
+                BeltColor beltColor = rankService.saveBeltColor(new BeltColor(
+                        req.getBeltColor(), req.getStripeColor(),
+                        req.getStripeCount() != null ? req.getStripeCount() : 0, rankLevel));
+
+                rankService.saveRankSetting(new RankSetting(dojo, rankName, rankLevel, beltColor));
+            }
+        }
+
+        for (int i = levelRequests.size(); i < existingSettings.size(); i++) {
+            RankSetting extra = existingSettings.get(i);
+            if (!rankService.isRankSettingAssigned(extra)) {
+                BeltColor belt = extra.getBeltColor();
+                RankLevel level = extra.getRankLevel();
+                rankService.deleteRankSetting(extra);
+                if (belt != null) rankService.deleteBeltColor(belt);
+                if (level != null) rankService.deleteRankLevel(level);
+            }
+        }
+
+        return buildRankDtos(dojo).stream()
+                .filter(r -> rankId.equals(r.getId()))
+                .findFirst()
+                .orElse(null);
+    }
+
+    @Transactional
+    public void deleteRank(OwnerPrincipal principal, Long dojoId, Long rankId) {
+        Dojo dojo = requireOwnedDojo(principal, dojoId);
+        RankName rankName = rankService.findRankNameById(rankId)
+                .orElseThrow(() -> new ResourceNotFoundException("Rank " + rankId + " was not found"));
+
+        if (!dojo.getId().equals(rankName.getDojo().getId())) {
+            throw new ForbiddenOperationException("Rank does not belong to the owned dojo");
+        }
+
+        List<RankSetting> settings = rankService.findSettingsByRankName(rankName);
+        for (RankSetting setting : settings) {
+            if (rankService.isRankSettingAssigned(setting)) {
+                throw new BadRequestException("Cannot delete rank because students are currently assigned to it");
+            }
+        }
+
+        for (RankSetting setting : settings) {
+            BeltColor belt = setting.getBeltColor();
+            RankLevel level = setting.getRankLevel();
+            rankService.deleteRankSetting(setting);
+            if (belt != null) rankService.deleteBeltColor(belt);
+            if (level != null) rankService.deleteRankLevel(level);
+        }
+
+        rankService.deleteRankName(rankName);
     }
 
     public List<RankDto> buildRankDtos(Dojo dojo) {

@@ -3,6 +3,7 @@ package com.dojomanager.rest.v1.students;
 import java.util.HashMap;
 import java.util.Map;
 
+import com.dojomanager.services.exceptions.BadRequestException;
 import com.dojomanager.services.exceptions.DuplicateResourceException;
 import com.dojomanager.services.exceptions.ForbiddenOperationException;
 import com.dojomanager.services.exceptions.ResourceNotFoundException;
@@ -23,6 +24,11 @@ import org.springframework.web.bind.annotation.RestControllerAdvice;
  */
 @RestControllerAdvice(assignableTypes = StudentController.class)
 public class StudentApiExceptionHandler {
+
+    @ExceptionHandler(BadRequestException.class)
+    public ResponseEntity<Map<String, Object>> handleBadRequest(BadRequestException ex) {
+        return error(HttpStatus.BAD_REQUEST, ex.getMessage());
+    }
 
     @ExceptionHandler(ResourceNotFoundException.class)
     public ResponseEntity<Map<String, Object>> handleNotFound(ResourceNotFoundException ex) {

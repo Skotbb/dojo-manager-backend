@@ -101,4 +101,24 @@ public class DojoController {
 
         return dojoService.addRanksToDojo(principal, id, ranks);
     }
+
+    @PutMapping("/{id}/ranks/{rankId}")
+    public ResponseEntity<RankDto> updateSingleRank(
+            @AuthenticationPrincipal OwnerPrincipal principal,
+            @PathVariable("id") Long id,
+            @PathVariable("rankId") Long rankId,
+            @Valid @RequestBody CreateDojoRequest.RankRequest request) {
+
+        return ResponseEntity.ok(dojoService.updateRank(principal, id, rankId, request));
+    }
+
+    @DeleteMapping("/{id}/ranks/{rankId}")
+    public ResponseEntity<Void> deleteRank(
+            @AuthenticationPrincipal OwnerPrincipal principal,
+            @PathVariable("id") Long id,
+            @PathVariable("rankId") Long rankId) {
+
+        dojoService.deleteRank(principal, id, rankId);
+        return ResponseEntity.noContent().build();
+    }
 }
