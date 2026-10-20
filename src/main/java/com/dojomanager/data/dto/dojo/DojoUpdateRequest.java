@@ -1,5 +1,8 @@
 package com.dojomanager.data.dto.dojo;
 
+import java.util.List;
+import jakarta.validation.Valid;
+
 /**
  * Body for creating or updating a dojo.
  *
@@ -12,6 +15,9 @@ public class DojoUpdateRequest {
     private String name;
     private String website;
     private String address;
+
+    @Valid
+    private List<CreateDojoRequest.RankRequest> ranks;
 
     public String getName() {
         return name;
@@ -35,5 +41,13 @@ public class DojoUpdateRequest {
 
     public void setAddress(String address) {
         this.address = address;
+    }
+
+    public List<CreateDojoRequest.RankRequest> getRanks() {
+        return ranks;
+    }
+
+    public void setRanks(List<CreateDojoRequest.RankRequest> ranks) {
+        this.ranks = ranks;
     }
 }

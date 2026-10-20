@@ -62,17 +62,20 @@
 		</dependency>
 		<dependency>
 			<groupId>io.jsonwebtoken</groupId>
-			<artifactId>jjwt</artifactId>
-			<version>0.9.0</version>
-		  </dependency>
-		<!-- jjwt 0.9.0 encodes its signatures through javax.xml.bind.DatatypeConverter.
-		     That class left the JDK in Java 11, so on the project's Java 25 runtime every
-		     token signing call failed with NoClassDefFoundError and no request could ever
-		     be authenticated. The JAXB API jar supplies the missing class. -->
+			<artifactId>jjwt-api</artifactId>
+			<version>0.12.6</version>
+		</dependency>
 		<dependency>
-			<groupId>javax.xml.bind</groupId>
-			<artifactId>jaxb-api</artifactId>
-			<version>2.3.1</version>
+			<groupId>io.jsonwebtoken</groupId>
+			<artifactId>jjwt-impl</artifactId>
+			<version>0.12.6</version>
+			<scope>runtime</scope>
+		</dependency>
+		<dependency>
+			<groupId>io.jsonwebtoken</groupId>
+			<artifactId>jjwt-jackson</artifactId>
+			<version>0.12.6</version>
+			<scope>runtime</scope>
 		</dependency>
 		<!-- Bean Validation provider: spring-boot-starter-web does not ship one since
 		     Spring Boot 2.3, so without this every @Valid annotation (login, signup,
@@ -110,7 +113,7 @@
 		<dependency>
 			<groupId>org.springframework.boot</groupId>
 			<artifactId>spring-boot-configuration-processor</artifactId>
-			<scope>annotationProcessor</scope>
+			<optional>true</optional>
 		</dependency>
 		<dependency>
 			<groupId>org.springframework.boot</groupId>

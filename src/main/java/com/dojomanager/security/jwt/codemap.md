@@ -6,10 +6,10 @@ JWT mechanics for the application — issue HS512-signed tokens, validate incomi
 
 ## Design
 
-- `JwtProvider` (`@Component`) is the token service. It reads `security.app.jwtSecret` (from `JWT_SECRET` in `application.properties`) and `security.app.jwtExpiration` (43200 seconds) via `@Value`. `@PostConstruct ensureJwtSecretConfigured()` fails fast at startup when the secret is blank, preventing accidental use of an unset signing key. Tokens are built with JJWT using subject = owner username/email, issued-at and expiration claims, signed with `SignatureAlgorithm.HS512`.
-- `JwtAuthenticationTokenFilter` extends `OncePerRequestFilter`. It is not annotated as a component; `WebSecurityConfig.authenticationJwtTokenFilter()` constructs it as a `@Bean`, and its `JwtProvider` / `UserDetailsServiceImpl` dependencies are `@Autowired`. Extraction is a simple `Authorization` header check and `replace("Bearer", "")`.
+- `JwtProvider` (`@Component`) is the token service. It reads `security.app.jwtSecret` (from `JWT_SECRET` in `application.properties`) and `security.app.jwtExpiration` (43200 seconds) via `@Value`. `@PostConstruct ensureJwtSecretConfigured()` derives a signing `SecretKey` (using Base64 decoding or SHA-256 fallback digest) and fails fast at startup when the secret is blank. Tokens are built with JJWT 0.12.6 (`Jwts.builder().subject(...).issuedAt(...).expiration(...).signWith(key).compact()`).
+- `JwtAuthenticationTokenFilter` extends `OncePerRequestFilter`. It is not annotated as a component; `WebSecurityConfig.authenticationJwtTokenFilter()` constructs it as a `@Bean`, and its `JwtProvider` / `UserDetailsServiceImpl` dependencies are `@Autowired`. Extraction strips the `Bearer ` prefix cleanly with trimming.
 - `JwtAuthenticationEntryPoint` (`@Component`) implements Spring Security's `AuthenticationEntryPoint`, logs the `AuthenticationException` and calls `response.sendError(401, "Error: Unauthorized")`.
-- Validation is exception-driven: `validateJwsToken` catches `SignatureException`, `MalformedJwtException`, `ExpiredJwtException`, `UnsupportedJwtException`, and `IllegalArgumentException`, logs them, and returns `false`; no exception escapes to the filter chain.
+- Validation is exception-driven: `validateJwsToken` parses with `Jwts.parser().verifyWith(key).build().parseSignedClaims(authToken.trim())`, catches `SecurityException`, `MalformedJwtException`, `ExpiredJwtException`, `UnsupportedJwtException`, and `IllegalArgumentException`, logs them, and returns `false`; no exception escapes to the filter chain.
 
 ## Flow
 

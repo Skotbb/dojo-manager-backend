@@ -1,5 +1,7 @@
 package com.dojomanager.data.dto.dojo;
 
+import java.util.List;
+
 import com.dojomanager.data.entities.dojo.Dojo;
 
 import lombok.AllArgsConstructor;
@@ -29,7 +31,14 @@ public class DojoDto {
     /** Flattened first line of the dojo's address, {@code null} when unset. */
     private String address;
 
+    /** Rank ladder configured for this dojo. */
+    private List<RankDto> ranks;
+
     public static DojoDto from(Dojo dojo) {
+        return from(dojo, null);
+    }
+
+    public static DojoDto from(Dojo dojo, List<RankDto> ranks) {
         if (dojo == null) {
             return null;
         }
@@ -39,6 +48,7 @@ public class DojoDto {
                 .name(dojo.getName())
                 .website(dojo.getWebsite())
                 .address(dojo.getAddress() == null ? null : dojo.getAddress().getAddressLine1())
+                .ranks(ranks)
                 .build();
     }
 }

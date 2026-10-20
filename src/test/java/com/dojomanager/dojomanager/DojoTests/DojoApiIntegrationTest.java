@@ -106,6 +106,127 @@ class DojoApiIntegrationTest {
         assertEquals(0, setting.getBeltColor().getStripeCount());
     }
 
+    @Test
+    void ownerCanGetRanksAndAddNewRankToExistingDojo() {
+        String suffix = UUID.randomUUID().toString().substring(0, 8);
+        String email = "dojo-owner-ranks-" + suffix + "@example.com";
+
+        ownerService.saveDojoOwner(new DojoOwner("Dojo", "Owner", email, passwordEncoder.encode(PASSWORD)));
+        String token = login(email);
+
+        Map<String, Object> body = new HashMap<>();
+        body.put("name", "Rank Dojo " + suffix);
+        body.put("ranks", List.of());
+
+        ResponseEntity<DojoDto> createResponse = rest.exchange(DOJOS_URL, HttpMethod.POST,
+                authed(token, body), DojoDto.class);
+        assertEquals(HttpStatus.CREATED, createResponse.getStatusCode());
+        Long dojoId = createResponse.getBody().getId();
+
+        // 1. Initially no ranks
+        ResponseEntity<List> initialRanks = rest.exchange(DOJOS_URL + "/" + dojoId + "/ranks",
+                HttpMethod.GET, authed(token, null), List.class);
+        assertEquals(HttpStatus.OK, initialRanks.getStatusCode());
+        assertEquals(0, initialRanks.getBody().size());
+
+        // 2. Add a new rank to the existing dojo
+        Map<String, Object> level = new HashMap<>();
+        level.put("sortOrder", 0);
+        level.put("number", 1);
+        level.put("hoursRequired", 20);
+        level.put("beltColor", "Yellow");
+        level.put("stripeColor", "Black");
+        level.put("stripeCount", 1);
+
+        Map<String, Object> rank = new HashMap<>();
+        rank.put("name", "Yellow Belt");
+        rank.put("levels", List.of(level));
+
+        ResponseEntity<Map> postRankResponse = rest.exchange(DOJOS_URL + "/" + dojoId + "/ranks",
+                HttpMethod.POST, authed(token, rank), Map.class);
+        assertEquals(HttpStatus.CREATED, postRankResponse.getStatusCode());
+        assertEquals("Yellow Belt", postRankResponse.getBody().get("name"));
+
+        // 3. Verify rank is now returned by GET
+        ResponseEntity<List> updatedRanks = rest.exchange(DOJOS_URL + "/" + dojoId + "/ranks",
+                HttpMethod.GET, authed(token, null), List.class);
+        assertEquals(HttpStatus.OK, updatedRanks.getStatusCode());
+        assertEquals(1, updatedRanks.getBody().size());
+    }
+
+    @Test
+    void ownerCanUpdateDojoWithRanksViaPut() {
+        String suffix = UUID.randomUUID().toString().substring(0, 8);
+        String email = "dojo-owner-put-" + suffix + "@example.com";
+
+        ownerService.saveDojoOwner(new DojoOwner("Dojo", "Owner", email, passwordEncoder.encode(PASSWORD)));
+        String token = login(email);
+
+        Map<String, Object> body = new HashMap<>();
+        body.put("name", "Initial Name " + suffix);
+        body.put("ranks", List.of());
+
+        ResponseEntity<DojoDto> createResponse = rest.exchange(DOJOS_URL, HttpMethod.POST,
+                authed(token, body), DojoDto.class);
+        Long dojoId = createResponse.getBody().getId();
+
+        // Update via PUT /api/v1/dojos/{id}
+        Map<String, Object> level = new HashMap<>();
+        level.put("sortOrder", 0);
+        level.put("number", 1);
+        level.put("hoursRequired", 15);
+        level.put("beltColor", "Orange");
+        level.put("stripeCount", 0);
+
+        Map<String, Object> rank = new HashMap<>();
+        rank.put("name", "Orange Belt");
+        rank.put("levels", List.of(level));
+
+        Map<String, Object> updateBody = new HashMap<>();
+        updateBody.put("name", "Updated Name " + suffix);
+        updateBody.put("website", "https://updated.example.com");
+        updateBody.put("ranks", List.of(rank));
+
+        ResponseEntity<DojoDto> updateResponse = rest.exchange(DOJOS_URL + "/" + dojoId,
+                HttpMethod.PUT, authed(token, updateBody), DojoDto.class);
+        assertEquals(HttpStatus.OK, updateResponse.getStatusCode());
+        assertEquals("Updated Name " + suffix, updateResponse.getBody().getName());
+        assertEquals(1, updateResponse.getBody().getRanks().size());
+        assertEquals("Orange Belt", updateResponse.getBody().getRanks().get(0).getName());
+    }
+
+    @Test
+    void ownerBCannotReadOrModifyRanksOfOwnerAsDojo() {
+        String suffixA = UUID.randomUUID().toString().substring(0, 8);
+        String emailA = "dojo-a-" + suffixA + "@example.com";
+        ownerService.saveDojoOwner(new DojoOwner("Owner", "A", emailA, passwordEncoder.encode(PASSWORD)));
+        String tokenA = login(emailA);
+
+        String suffixB = UUID.randomUUID().toString().substring(0, 8);
+        String emailB = "dojo-b-" + suffixB + "@example.com";
+        ownerService.saveDojoOwner(new DojoOwner("Owner", "B", emailB, passwordEncoder.encode(PASSWORD)));
+        String tokenB = login(emailB);
+
+        Map<String, Object> body = new HashMap<>();
+        body.put("name", "Dojo A");
+        ResponseEntity<DojoDto> createResponse = rest.exchange(DOJOS_URL, HttpMethod.POST,
+                authed(tokenA, body), DojoDto.class);
+        Long dojoAId = createResponse.getBody().getId();
+
+        // Owner B tries to GET dojo A's ranks
+        ResponseEntity<String> getResponse = rest.exchange(DOJOS_URL + "/" + dojoAId + "/ranks",
+                HttpMethod.GET, authed(tokenB, null), String.class);
+        assertEquals(HttpStatus.NOT_FOUND, getResponse.getStatusCode());
+
+        // Owner B tries to POST to dojo A's ranks
+        Map<String, Object> rank = new HashMap<>();
+        rank.put("name", "Malicious Belt");
+        rank.put("levels", List.of());
+        ResponseEntity<String> postResponse = rest.exchange(DOJOS_URL + "/" + dojoAId + "/ranks",
+                HttpMethod.POST, authed(tokenB, rank), String.class);
+        assertEquals(HttpStatus.NOT_FOUND, postResponse.getStatusCode());
+    }
+
     private String login(String email) {
         Map<String, String> credentials = new HashMap<>();
         credentials.put("email", email);

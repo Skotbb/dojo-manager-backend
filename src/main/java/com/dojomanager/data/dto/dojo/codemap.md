@@ -7,10 +7,11 @@ DTO Layer — dojo/owner API payloads: flattened dojo reads, the owner profile r
 ## Design
 
 - `CreateDojoRequest` — Lombok `@Data` body for `POST /api/v1/dojos`, kept separate from `DojoUpdateRequest` so updates cannot rewrite the rank graph. Top level: `name` (`@NotBlank`), `website`, `address`, and `@Valid List<RankRequest> ranks` (nullable/empty allowed). Nested static classes: `RankRequest` (`@NotBlank name`, `@Valid levels: List<RankLevelRequest>`) and `RankLevelRequest` (`sortOrder`, `number`, `hoursRequired` as primitives defaulting to 0, `beltColor` `@NotBlank`, nullable `stripeColor`, `Integer stripeCount` — null-safe at persistence).
-- `DojoDto` — new flattened dojo response (Lombok-based) with `id`, `name`, `website`, and a flattened address; static `from(Dojo)` mapper. Never exposes the JPA entity graph.
-- `DojoResponse` — plain POJO wrapper. Single field `List<DojoDto> dojos` (changed from `List<Dojo>` — it no longer serializes entities directly). Constructed by `DojoController.getMyDojos`.
-- `OwnerResponse` — new flat owner profile response with `id`, names, email, and `managedDojos` as `DojoDto[]`; static `from(DojoOwner)` mapper. Replaces the raw `DojoOwner`/`Collection<Dojo>` responses the old `/owner` endpoints returned.
-- `DojoUpdateRequest` — plain POJO with `name`, `website`, `address`. Fields are optional (only non-null values are applied by `DojoService.applyRequest`, wrapping the address string in `new Address(address, null, null, null, null)`). The `contact` field was removed — the `Dojo` entity has no contact field, so it was accepted-but-never-applied dead weight.
+- `DojoDto` — flattened dojo response (Lombok-based) with `id`, `name`, `website`, flattened address, and optional `ranks: List<RankDto>`; static `from(Dojo)` and `from(Dojo, List<RankDto>)` mappers. Never exposes the JPA entity graph.
+- `RankDto` and `RankLevelDto` — structured DTO representations of ranks and levels (`id`, `name`, `levels` containing `sortOrder`, `number`, `hoursRequired`, `beltColor`, `stripeColor`, `stripeCount`, `rankSettingId`).
+- `DojoResponse` — plain POJO wrapper. Single field `List<DojoDto> dojos`. Constructed by `DojoController.getMyDojos`.
+- `OwnerResponse` — flat owner profile response with `id`, names, email, and `managedDojos` as `DojoDto[]`; static `from(DojoOwner)` mapper.
+- `DojoUpdateRequest` — POJO with `name`, `website`, `address`, and optional `@Valid List<CreateDojoRequest.RankRequest> ranks`. Fields are optional (only non-null values are applied).
 - `OwnerDTO` — deleted. It was a legacy, unused signup-shaped DTO (imported but never referenced).
 - No `jakarta.validation` annotations; the controller does not `@Valid` these bodies yet.
 

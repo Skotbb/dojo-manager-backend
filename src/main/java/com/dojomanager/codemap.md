@@ -10,7 +10,6 @@ Layered monolith under a single base package so Spring Boot's default component 
 - `services/` — business logic (`StudentService`, `AttendanceService`, `DojoService`, `DojoOwnerService`, `RankService`, `ScheduleService`, `AddressService`) and domain exceptions in `services/exceptions`.
 - `data/` — data layer umbrella: `entities`, `repositories`, `dto`, `forms`.
 - `security/` — Spring Security and JWT plumbing (`security/jwt`, `security/services`, incl. `OwnerPrincipal`).
-- `utils/` — shared helper utilities.
 
 ## Flow
 `DojomanagerApplication.main` starts the context → component scan discovers controllers, services, repositories, security config → inbound HTTP requests are authenticated by the `security` layer → `rest` controllers call `services` → services use `data.repositories` over `data.entities` → responses are mapped to `data.dto` objects.

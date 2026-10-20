@@ -6,6 +6,7 @@ import com.dojomanager.data.dto.dojo.CreateDojoRequest;
 import com.dojomanager.data.dto.dojo.DojoDto;
 import com.dojomanager.data.dto.dojo.DojoResponse;
 import com.dojomanager.data.dto.dojo.DojoUpdateRequest;
+import com.dojomanager.data.dto.dojo.RankDto;
 import com.dojomanager.data.entities.dojo.Dojo;
 import com.dojomanager.security.services.OwnerPrincipal;
 import com.dojomanager.services.DojoService;
@@ -45,7 +46,7 @@ public class DojoController {
     @GetMapping
     public DojoResponse getMyDojos(@AuthenticationPrincipal OwnerPrincipal principal) {
         List<DojoDto> dojos = dojoService.listDojos(principal).stream()
-                .map(DojoDto::from)
+                .map(dojo -> DojoDto.from(dojo, dojoService.buildRankDtos(dojo)))
                 .toList();
 
         return new DojoResponse(dojos);
@@ -57,16 +58,47 @@ public class DojoController {
             @Valid @RequestBody CreateDojoRequest request) {
 
         Dojo created = dojoService.createDojo(principal, request);
+        List<RankDto> ranks = dojoService.getRanksForDojo(principal, created.getId());
 
-        return ResponseEntity.status(HttpStatus.CREATED).body(DojoDto.from(created));
+        return ResponseEntity.status(HttpStatus.CREATED).body(DojoDto.from(created, ranks));
     }
 
     @PutMapping("/{id}")
     public DojoDto updateDojo(
             @AuthenticationPrincipal OwnerPrincipal principal,
             @PathVariable("id") Long id,
-            @RequestBody DojoUpdateRequest request) {
+            @Valid @RequestBody DojoUpdateRequest request) {
 
-        return DojoDto.from(dojoService.updateDojo(principal, id, request));
+        Dojo updated = dojoService.updateDojo(principal, id, request);
+        List<RankDto> ranks = dojoService.getRanksForDojo(principal, id);
+
+        return DojoDto.from(updated, ranks);
+    }
+
+    @GetMapping("/{id}/ranks")
+    public List<RankDto> getDojoRanks(
+            @AuthenticationPrincipal OwnerPrincipal principal,
+            @PathVariable("id") Long id) {
+
+        return dojoService.getRanksForDojo(principal, id);
+    }
+
+    @PostMapping("/{id}/ranks")
+    public ResponseEntity<RankDto> addDojoRank(
+            @AuthenticationPrincipal OwnerPrincipal principal,
+            @PathVariable("id") Long id,
+            @Valid @RequestBody CreateDojoRequest.RankRequest request) {
+
+        RankDto created = dojoService.addRankToDojo(principal, id, request);
+        return ResponseEntity.status(HttpStatus.CREATED).body(created);
+    }
+
+    @PutMapping("/{id}/ranks")
+    public List<RankDto> updateDojoRanks(
+            @AuthenticationPrincipal OwnerPrincipal principal,
+            @PathVariable("id") Long id,
+            @Valid @RequestBody List<CreateDojoRequest.RankRequest> ranks) {
+
+        return dojoService.addRanksToDojo(principal, id, ranks);
     }
 }

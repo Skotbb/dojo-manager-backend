@@ -1,6 +1,10 @@
 package com.dojomanager.security.jwt;
 
+import java.nio.charset.StandardCharsets;
+import java.security.MessageDigest;
+import java.security.NoSuchAlgorithmException;
 import java.util.Date;
+import javax.crypto.SecretKey;
 
 import com.dojomanager.security.services.OwnerPrincipal;
 
@@ -14,9 +18,10 @@ import org.springframework.stereotype.Component;
 import io.jsonwebtoken.ExpiredJwtException;
 import io.jsonwebtoken.Jwts;
 import io.jsonwebtoken.MalformedJwtException;
-import io.jsonwebtoken.SignatureAlgorithm;
-import io.jsonwebtoken.SignatureException;
 import io.jsonwebtoken.UnsupportedJwtException;
+import io.jsonwebtoken.io.Decoders;
+import io.jsonwebtoken.security.Keys;
+import io.jsonwebtoken.security.SecurityException;
 
 @Component
 public class JwtProvider {
@@ -26,7 +31,9 @@ public class JwtProvider {
     @Value("${security.app.jwtExpiration}")
     private int jwtExpiration;
 
-    private static Logger LOG = LogManager.getLogger(JwtProvider.class);
+    private SecretKey key;
+
+    private static final Logger LOG = LogManager.getLogger(JwtProvider.class);
 
     @PostConstruct
     public void ensureJwtSecretConfigured() {
@@ -36,26 +43,54 @@ public class JwtProvider {
                             + "(mapped to security.app.jwtSecret) to a strong, secret value and restart "
                             + "the application. Never commit a signing secret to source control.");
         }
+        this.key = deriveSigningKey(jwtSecret);
+    }
+
+    private SecretKey deriveSigningKey(String secret) {
+        byte[] keyBytes;
+        try {
+            keyBytes = Decoders.BASE64.decode(secret);
+            if (keyBytes.length < 32) {
+                keyBytes = sha256(secret.getBytes(StandardCharsets.UTF_8));
+            }
+        } catch (Exception e) {
+            keyBytes = sha256(secret.getBytes(StandardCharsets.UTF_8));
+        }
+        return Keys.hmacShaKeyFor(keyBytes);
+    }
+
+    private byte[] sha256(byte[] input) {
+        try {
+            MessageDigest md = MessageDigest.getInstance("SHA-256");
+            return md.digest(input);
+        } catch (NoSuchAlgorithmException e) {
+            throw new IllegalStateException("SHA-256 algorithm unavailable", e);
+        }
     }
 
     public String generateJwtToken(Authentication authentication) {
         OwnerPrincipal ownerPrincipal = (OwnerPrincipal) authentication.getPrincipal();
+        Date now = new Date();
+        Date expiration = new Date(now.getTime() + (long) jwtExpiration * 1000);
 
         return Jwts.builder()
-        .setSubject(ownerPrincipal.getUsername())
-        .setIssuedAt(new Date())
-        .setExpiration(new Date(new Date().getTime() + jwtExpiration*1000))
-        .signWith(SignatureAlgorithm.HS512, jwtSecret)
-        .compact();
+                .subject(ownerPrincipal.getUsername())
+                .issuedAt(now)
+                .expiration(expiration)
+                .signWith(key)
+                .compact();
     }
 
     public boolean validateJwsToken(String authToken) {
+        if (authToken == null || authToken.isBlank()) {
+            return false;
+        }
         try {
-            Jwts.parser().setSigningKey(jwtSecret).parseClaimsJws(authToken);
+            Jwts.parser().verifyWith(key).build().parseSignedClaims(authToken.trim());
             return true;
-        } catch (SignatureException e) {
+        } catch (SecurityException e) {
             LOG.error("Invalid JWT signature -> Message: {}", e);
-        }catch (MalformedJwtException e) {
+        } catch (MalformedJwtException e) {
             LOG.error("Invalid JWT token -> Message: {}", e);
         } catch (ExpiredJwtException e) {
             LOG.error("Expired JWT token -> Message: {}", e);
@@ -69,6 +104,6 @@ public class JwtProvider {
     }
 
     public String getUsernameFromJwtToken(String token) {
-        return Jwts.parser().setSigningKey(jwtSecret).parseClaimsJws(token).getBody().getSubject();
+        return Jwts.parser().verifyWith(key).build().parseSignedClaims(token.trim()).getPayload().getSubject();
     }
 }

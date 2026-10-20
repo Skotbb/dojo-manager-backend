@@ -1,11 +1,19 @@
 package com.dojomanager.services;
 
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.Comparator;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
+import java.util.stream.Collectors;
 
 import com.dojomanager.data.dto.dojo.CreateDojoRequest;
 import com.dojomanager.data.dto.dojo.DojoUpdateRequest;
+import com.dojomanager.data.dto.dojo.RankDto;
+import com.dojomanager.data.dto.dojo.RankLevelDto;
 import com.dojomanager.data.entities.dojo.Dojo;
 import com.dojomanager.data.entities.dojo.DojoOwner;
 import com.dojomanager.data.entities.people.Address;
@@ -74,16 +82,82 @@ public class DojoService {
      */
     @Transactional
     public Dojo updateDojo(OwnerPrincipal principal, Long dojoId, DojoUpdateRequest request) {
-        DojoOwner owner = ownerService.requireOwner(principal);
-
-        Dojo dojo = dojoRepo.findByOwner(owner).stream()
-                .filter(candidate -> dojoId.equals(candidate.getId()))
-                .findFirst()
-                .orElseThrow(() -> new ResourceNotFoundException("Dojo " + dojoId + " was not found"));
+        Dojo dojo = requireOwnedDojo(principal, dojoId);
 
         applyRequest(dojo, request);
 
+        if (request.getRanks() != null && !request.getRanks().isEmpty()) {
+            persistRanks(dojo, request.getRanks());
+        }
+
         return dojoRepo.saveAndFlush(dojo);
+    }
+
+    public Dojo requireOwnedDojo(OwnerPrincipal principal, Long dojoId) {
+        DojoOwner owner = ownerService.requireOwner(principal);
+
+        return dojoRepo.findByOwner(owner).stream()
+                .filter(candidate -> dojoId.equals(candidate.getId()))
+                .findFirst()
+                .orElseThrow(() -> new ResourceNotFoundException("Dojo " + dojoId + " was not found"));
+    }
+
+    @Transactional(readOnly = true)
+    public List<RankDto> getRanksForDojo(OwnerPrincipal principal, Long dojoId) {
+        Dojo dojo = requireOwnedDojo(principal, dojoId);
+        return buildRankDtos(dojo);
+    }
+
+    @Transactional
+    public RankDto addRankToDojo(OwnerPrincipal principal, Long dojoId, CreateDojoRequest.RankRequest rankRequest) {
+        Dojo dojo = requireOwnedDojo(principal, dojoId);
+        return persistRank(dojo, rankRequest);
+    }
+
+    @Transactional
+    public List<RankDto> addRanksToDojo(OwnerPrincipal principal, Long dojoId, List<CreateDojoRequest.RankRequest> ranks) {
+        Dojo dojo = requireOwnedDojo(principal, dojoId);
+        persistRanks(dojo, ranks);
+        return buildRankDtos(dojo);
+    }
+
+    public List<RankDto> buildRankDtos(Dojo dojo) {
+        List<RankSetting> settings = rankService.getRankSettingsByDojo(dojo);
+
+        Map<RankName, List<RankSetting>> grouped = settings.stream()
+                .filter(rs -> rs.getRankName() != null)
+                .collect(Collectors.groupingBy(
+                        RankSetting::getRankName,
+                        LinkedHashMap::new,
+                        Collectors.toList()
+                ));
+
+        List<RankDto> rankDtos = new ArrayList<>();
+        for (Map.Entry<RankName, List<RankSetting>> entry : grouped.entrySet()) {
+            RankName rankName = entry.getKey();
+            List<RankSetting> rankSettings = entry.getValue();
+
+            List<RankLevelDto> levelDtos = rankSettings.stream()
+                    .sorted(Comparator.comparingInt(rs -> rs.getRankLevel() != null ? rs.getRankLevel().getSortOrder() : 0))
+                    .map(rs -> RankLevelDto.builder()
+                            .id(rs.getRankLevel() != null ? rs.getRankLevel().getId() : null)
+                            .rankSettingId(rs.getId())
+                            .sortOrder(rs.getRankLevel() != null ? rs.getRankLevel().getSortOrder() : 0)
+                            .number(rs.getRankLevel() != null ? rs.getRankLevel().getNumber() : 0)
+                            .hoursRequired(rs.getRankLevel() != null ? rs.getRankLevel().getHoursRequired() : 0)
+                            .beltColor(rs.getBeltColor() != null ? rs.getBeltColor().getColor() : null)
+                            .stripeColor(rs.getBeltColor() != null ? rs.getBeltColor().getStripeColor() : null)
+                            .stripeCount(rs.getBeltColor() != null ? rs.getBeltColor().getStripeCount() : 0)
+                            .build())
+                    .toList();
+
+            rankDtos.add(RankDto.builder()
+                    .id(rankName.getId())
+                    .name(rankName.getName())
+                    .levels(levelDtos)
+                    .build());
+        }
+        return rankDtos;
     }
 
     private void applyRequest(Dojo dojo, DojoUpdateRequest request) {
@@ -114,12 +188,15 @@ public class DojoService {
         }
 
         for (CreateDojoRequest.RankRequest rank : ranks) {
-            RankName rankName = rankService.saveRankName(new RankName(rank.getName(), dojo));
+            persistRank(dojo, rank);
+        }
+    }
 
-            if (rank.getLevels() == null) {
-                continue;
-            }
+    private RankDto persistRank(Dojo dojo, CreateDojoRequest.RankRequest rank) {
+        RankName rankName = rankService.saveRankName(new RankName(rank.getName(), dojo));
+        List<RankLevelDto> levelDtos = new ArrayList<>();
 
+        if (rank.getLevels() != null) {
             for (CreateDojoRequest.RankLevelRequest level : rank.getLevels()) {
                 RankLevel rankLevel = rankService.saveRankLevel(new RankLevel(
                         level.getSortOrder(), level.getNumber(), level.getHoursRequired(), rankName));
@@ -128,9 +205,26 @@ public class DojoService {
                         level.getBeltColor(), level.getStripeColor(),
                         level.getStripeCount() != null ? level.getStripeCount() : 0, rankLevel));
 
-                rankService.saveRankSetting(new RankSetting(dojo, rankName, rankLevel, beltColor));
+                RankSetting setting = rankService.saveRankSetting(new RankSetting(dojo, rankName, rankLevel, beltColor));
+
+                levelDtos.add(RankLevelDto.builder()
+                        .id(rankLevel.getId())
+                        .rankSettingId(setting.getId())
+                        .sortOrder(rankLevel.getSortOrder())
+                        .number(rankLevel.getNumber())
+                        .hoursRequired(rankLevel.getHoursRequired())
+                        .beltColor(beltColor.getColor())
+                        .stripeColor(beltColor.getStripeColor())
+                        .stripeCount(beltColor.getStripeCount())
+                        .build());
             }
         }
+
+        return RankDto.builder()
+                .id(rankName.getId())
+                .name(rankName.getName())
+                .levels(levelDtos)
+                .build();
     }
 
     public Dojo saveDojo(Dojo dojo) {

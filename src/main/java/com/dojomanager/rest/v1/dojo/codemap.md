@@ -7,7 +7,10 @@ REST API v1 — dojo management, authenticated owner profile, and weekly schedul
 - `DojoController` — `@RestController`, `@CrossOrigin(origins = "http://localhost:4200", maxAge = 3600)`, `@RequestMapping(path = "/api/v1/dojos")`, constructor-injects `DojoService` via `@RequiredArgsConstructor`:
   - `GET /api/v1/dojos` → `getMyDojos(@AuthenticationPrincipal OwnerPrincipal)` → `DojoResponse` of `DojoDto`.
   - `POST /api/v1/dojos` → `createDojo(principal, @Valid CreateDojoRequest)` → `201 Created` `DojoDto`; persists the dojo together with its rank graph (see `DojoService.persistRanks`).
-  - `PUT /api/v1/dojos/{id}` → `updateDojo(principal, id, DojoUpdateRequest)` → `DojoDto`; a foreign/missing dojo is reported as 404. Updates deliberately do NOT touch ranks.
+  - `PUT /api/v1/dojos/{id}` → `updateDojo(principal, id, DojoUpdateRequest)` → `DojoDto`; a foreign/missing dojo is reported as 404. Can optionally update/append ranks if `ranks` list is supplied.
+  - `GET /api/v1/dojos/{id}/ranks` → `getDojoRanks(principal, id)` → `List<RankDto>` of configured ranks and levels for the owned dojo.
+  - `POST /api/v1/dojos/{id}/ranks` → `addDojoRank(principal, id, @Valid RankRequest)` → `201 Created` `RankDto`.
+  - `PUT /api/v1/dojos/{id}/ranks` → `updateDojoRanks(principal, id, @Valid List<RankRequest>)` → `List<RankDto>`.
 - `DojoOwnerController` — `@RestController`, `@CrossOrigin`, `@RequestMapping(path = "/api/v1/owner")`:
   - `GET /api/v1/owner` → `getMyOwner(principal)` → `OwnerResponse` (owner + flattened managed dojos).
   - The legacy `GET /owner/{userId}` (email trusted from the path) and `GET /owner/all` are removed; there is no path variable that can select another owner.
