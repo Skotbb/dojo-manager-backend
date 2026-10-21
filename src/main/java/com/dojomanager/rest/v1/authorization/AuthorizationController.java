@@ -1,14 +1,21 @@
 package com.dojomanager.rest.v1.authorization;
 
+import java.util.Optional;
+
 import jakarta.validation.Valid;
 
 import com.dojomanager.data.dto.MessageResponse;
+import com.dojomanager.data.dto.authorization.ForgotPasswordResponse;
 import com.dojomanager.data.dto.authorization.JwtResponse;
 import com.dojomanager.data.entities.dojo.DojoOwner;
+import com.dojomanager.data.forms.ForgotPasswordForm;
 import com.dojomanager.data.forms.LoginForm;
+import com.dojomanager.data.forms.ResetPasswordForm;
 import com.dojomanager.data.forms.SignupForm;
 import com.dojomanager.security.jwt.JwtProvider;
 import com.dojomanager.services.DojoOwnerService;
+import com.dojomanager.services.PasswordResetService;
+import com.dojomanager.services.PasswordResetService.ResetLink;
 
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
@@ -42,6 +49,32 @@ public class AuthorizationController {
 
     @Autowired
     JwtProvider jwtProvider;
+
+    @Autowired
+    PasswordResetService passwordResetService;
+
+    /**
+     * Always answers with the same 200 message, whether or not the email exists,
+     * so the endpoint cannot be used to enumerate accounts. Development builds
+     * additionally return {@code resetUrl}/{@code token} (see
+     * {@link ForgotPasswordResponse}).
+     */
+    @PostMapping("/forgot-password")
+    public ResponseEntity<MessageResponse> forgotPassword(@Valid @RequestBody ForgotPasswordForm form) {
+        Optional<ResetLink> resetLink = passwordResetService.requestReset(form.getEmail());
+
+        String message = "If an account exists for that email, a password reset link has been sent";
+        String resetUrl = resetLink.map(ResetLink::resetUrl).orElse(null);
+        String token = resetLink.map(ResetLink::token).orElse(null);
+
+        return ResponseEntity.ok(new ForgotPasswordResponse(message, resetUrl, token));
+    }
+
+    @PostMapping("/reset-password")
+    public ResponseEntity<MessageResponse> resetPassword(@Valid @RequestBody ResetPasswordForm form) {
+        passwordResetService.resetPassword(form.getToken(), form.getPassword());
+        return ResponseEntity.ok(new MessageResponse("Password has been reset successfully"));
+    }
 
     @PostMapping("/login")
     public ResponseEntity<?> authenticateUser(@Valid @RequestBody LoginForm loginRequest) {
