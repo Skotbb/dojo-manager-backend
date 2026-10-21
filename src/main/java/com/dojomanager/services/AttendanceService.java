@@ -195,6 +195,41 @@ public class AttendanceService {
             throw new ForbiddenOperationException("Attendance record does not belong to your dojo");
         }
 
+        rollbackRankCredit(record);
+
+        attendanceRepository.delete(record);
+    }
+
+    /**
+     * Cascade cleanup used when a schedule is deleted: reverts the hours credited
+     * by the given sessions' attendance records and physically removes those
+     * records before their {@code daily_schedule} parents are deleted.
+     *
+     * <p>Ownership is intentionally not checked here; {@code ScheduleService}
+     * already verified that the schedule belongs to the caller. This method
+     * deliberately does not depend on {@code ScheduleService} to avoid a
+     * circular service dependency.</p>
+     */
+    @Transactional
+    public void deleteRecordsForSessions(List<Long> sessionIds) {
+        if (sessionIds == null || sessionIds.isEmpty()) {
+            return;
+        }
+
+        List<AttendanceRecord> records = attendanceRepository.findBySessionIdIn(sessionIds);
+        for (AttendanceRecord record : records) {
+            rollbackRankCredit(record);
+        }
+
+        attendanceRepository.deleteAll(records);
+        attendanceRepository.flush();
+    }
+
+    /**
+     * Reverts the rank hours credited by a PRESENT or LATE record. ABSENT
+     * records never credited anything, so they are left alone.
+     */
+    private void rollbackRankCredit(AttendanceRecord record) {
         if (record.getStatus() == AttendanceStatus.PRESENT || record.getStatus() == AttendanceStatus.LATE) {
             double durationHours = calculateDuration(record.getSession());
             Student student = record.getStudent();
@@ -204,8 +239,6 @@ public class AttendanceService {
                 rankRepository.save(rank);
             }
         }
-
-        attendanceRepository.delete(record);
     }
 
     @Transactional(readOnly = true)

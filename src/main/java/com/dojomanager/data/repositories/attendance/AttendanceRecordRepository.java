@@ -1,6 +1,7 @@
 package com.dojomanager.data.repositories.attendance;
 
 import java.time.LocalDate;
+import java.util.Collection;
 import java.util.List;
 import java.util.Optional;
 
@@ -24,6 +25,8 @@ public interface AttendanceRecordRepository extends JpaRepository<AttendanceReco
             Long studentId, Long sessionId, LocalDate sessionDate);
 
     List<AttendanceRecord> findBySessionIdAndSessionDate(Long sessionId, LocalDate sessionDate);
+
+    List<AttendanceRecord> findBySessionIdIn(Collection<Long> sessionIds);
 
     List<AttendanceRecord> findBySessionDateAndDojoOwnerId(LocalDate sessionDate, Long ownerId);
 

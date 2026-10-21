@@ -16,6 +16,7 @@ import com.dojomanager.data.entities.schedule.DailySchedule;
 import com.dojomanager.data.entities.schedule.WeeklySchedule;
 import com.dojomanager.data.repositories.dojo.DojoOwnerRepository;
 import com.dojomanager.data.repositories.dojo.DojoRepository;
+import com.dojomanager.data.repositories.people.StudentRepository;
 import com.dojomanager.data.repositories.schedule.DailyScheduleRepository;
 import com.dojomanager.data.repositories.schedule.WeeklyScheduleRepository;
 import com.dojomanager.security.services.OwnerPrincipal;
@@ -37,6 +38,8 @@ public class ScheduleService {
     private final DojoOwnerRepository ownerRepo;
     private final DojoRepository dojoRepository;
     private final StudentService studentService;
+    private final StudentRepository studentRepository;
+    private final AttendanceService attendanceService;
 
     public WeeklySchedule saveWeeklySchedule(WeeklySchedule weekSched) {
         return weeklyRepo.save(weekSched);
@@ -115,10 +118,34 @@ public class ScheduleService {
         return promoted;
     }
 
+    /**
+     * Deletes a schedule together with every row that references it. All foreign
+     * keys are NO ACTION, so the dependants are removed explicitly and in
+     * dependency order inside a single transaction:
+     *
+     * <ol>
+     *   <li>attendance records (reverting the hours they credited),</li>
+     *   <li>the enrollment join rows,</li>
+     *   <li>the daily sessions,</li>
+     *   <li>the weekly schedule itself.</li>
+     * </ol>
+     */
     @Transactional
     public void deleteSession(OwnerPrincipal principal, Long id) {
         DojoOwner owner = requireOwner(principal);
         WeeklySchedule existing = requireOwnedSchedule(owner, id);
+
+        List<DailySchedule> sessions = dailyRepo.findByWeeklyScheduleId(id);
+        List<Long> sessionIds = sessions.stream()
+                .map(DailySchedule::getId)
+                .toList();
+        attendanceService.deleteRecordsForSessions(sessionIds);
+
+        studentRepository.deleteEnrollmentsByScheduleId(id);
+
+        dailyRepo.deleteAll(sessions);
+        dailyRepo.flush();
+
         weeklyRepo.delete(existing);
     }
 
