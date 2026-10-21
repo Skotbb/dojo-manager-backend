@@ -227,6 +227,142 @@ class DojoApiIntegrationTest {
         assertEquals(HttpStatus.NOT_FOUND, postResponse.getStatusCode());
     }
 
+    @Test
+    void updateRankMatchesLevelsBySortOrderRegardlessOfDbOrder() {
+        String suffix = UUID.randomUUID().toString().substring(0, 8);
+        String email = "dojo-owner-edit-" + suffix + "@example.com";
+        ownerService.saveDojoOwner(new DojoOwner("Dojo", "Owner", email, passwordEncoder.encode(PASSWORD)));
+        String token = login(email);
+
+        // Create a dojo with a two-level tier.
+        Map<String, Object> lvl0 = new HashMap<>();
+        lvl0.put("sortOrder", 0);
+        lvl0.put("number", 10);
+        lvl0.put("hoursRequired", 0);
+        lvl0.put("beltColor", "White");
+        lvl0.put("stripeCount", 0);
+
+        Map<String, Object> lvl1 = new HashMap<>();
+        lvl1.put("sortOrder", 1);
+        lvl1.put("number", 9);
+        lvl1.put("hoursRequired", 54);
+        lvl1.put("beltColor", "Blue");
+        lvl1.put("stripeCount", 0);
+
+        Map<String, Object> rank = new HashMap<>();
+        rank.put("name", "Kyu");
+        rank.put("levels", List.of(lvl0, lvl1));
+
+        Map<String, Object> body = new HashMap<>();
+        body.put("name", "Edit Dojo " + suffix);
+        body.put("ranks", List.of(rank));
+        ResponseEntity<DojoDto> createResponse = rest.exchange(DOJOS_URL, HttpMethod.POST,
+                authed(token, body), DojoDto.class);
+        Long dojoId = createResponse.getBody().getId();
+        Long rankId = createResponse.getBody().getRanks().get(0).getId();
+
+        // Update level sortOrder=1 (number 9) hours 54 -> 60, sending levels in
+        // sortOrder order exactly like the UI does. The update must land on the
+        // correct level even though findSettingsByRankName has no ORDER BY.
+        Map<String, Object> upd0 = new HashMap<>();
+        upd0.put("sortOrder", 0);
+        upd0.put("number", 10);
+        upd0.put("hoursRequired", 0);
+        upd0.put("beltColor", "White");
+        upd0.put("stripeCount", 0);
+
+        Map<String, Object> upd1 = new HashMap<>();
+        upd1.put("sortOrder", 1);
+        upd1.put("number", 9);
+        upd1.put("hoursRequired", 60);
+        upd1.put("beltColor", "Blue");
+        upd1.put("stripeCount", 0);
+
+        Map<String, Object> updRank = new HashMap<>();
+        updRank.put("name", "Kyu");
+        updRank.put("levels", List.of(upd0, upd1));
+
+        ResponseEntity<Map> updateResponse = rest.exchange(
+                DOJOS_URL + "/" + dojoId + "/ranks/" + rankId,
+                HttpMethod.PUT, authed(token, updRank), Map.class);
+        assertEquals(HttpStatus.OK, updateResponse.getStatusCode());
+
+        // Read the ladder back and assert the edit landed on the right level.
+        ResponseEntity<List> ranksResponse = rest.exchange(DOJOS_URL + "/" + dojoId + "/ranks",
+                HttpMethod.GET, authed(token, null), List.class);
+        List<Map> ranks = ranksResponse.getBody();
+        assertEquals(1, ranks.size());
+        List<Map> levels = (List<Map>) ranks.get(0).get("levels");
+        assertEquals(2, levels.size());
+        // levels come back sorted by sortOrder
+        assertEquals(0, levels.get(0).get("sortOrder"));
+        assertEquals(0, ((Number) levels.get(0).get("hoursRequired")).intValue());
+        assertEquals(1, levels.get(1).get("sortOrder"));
+        assertEquals(60, ((Number) levels.get(1).get("hoursRequired")).intValue());
+    }
+
+    @Test
+    void deleteRankLevelRemovesOnlyThatLevelAndKeepsSiblings() {
+        String suffix = UUID.randomUUID().toString().substring(0, 8);
+        String email = "dojo-owner-del-" + suffix + "@example.com";
+        ownerService.saveDojoOwner(new DojoOwner("Dojo", "Owner", email, passwordEncoder.encode(PASSWORD)));
+        String token = login(email);
+
+        Map<String, Object> lvl0 = new HashMap<>();
+        lvl0.put("sortOrder", 0);
+        lvl0.put("number", 10);
+        lvl0.put("hoursRequired", 0);
+        lvl0.put("beltColor", "White");
+        lvl0.put("stripeCount", 0);
+
+        Map<String, Object> lvl1 = new HashMap<>();
+        lvl1.put("sortOrder", 1);
+        lvl1.put("number", 9);
+        lvl1.put("hoursRequired", 54);
+        lvl1.put("beltColor", "Blue");
+        lvl1.put("stripeCount", 0);
+
+        Map<String, Object> rank = new HashMap<>();
+        rank.put("name", "Kyu");
+        rank.put("levels", List.of(lvl0, lvl1));
+
+        Map<String, Object> body = new HashMap<>();
+        body.put("name", "Del Dojo " + suffix);
+        body.put("ranks", List.of(rank));
+        ResponseEntity<DojoDto> createResponse = rest.exchange(DOJOS_URL, HttpMethod.POST,
+                authed(token, body), DojoDto.class);
+        Long dojoId = createResponse.getBody().getId();
+        Long rankId = createResponse.getBody().getRanks().get(0).getId();
+        Long level9Id = createResponse.getBody().getRanks().get(0).getLevels().get(1).getId();
+
+        // Delete only the Level 9 setting.
+        ResponseEntity<Void> deleteResponse = rest.exchange(
+                DOJOS_URL + "/" + dojoId + "/ranks/" + rankId + "/levels/" + level9Id,
+                HttpMethod.DELETE, authed(token, null), Void.class);
+        assertEquals(HttpStatus.NO_CONTENT, deleteResponse.getStatusCode());
+
+        // The sibling Level 10 must survive and the tier must still exist.
+        ResponseEntity<List> ranksResponse = rest.exchange(DOJOS_URL + "/" + dojoId + "/ranks",
+                HttpMethod.GET, authed(token, null), List.class);
+        List<Map> ranks = ranksResponse.getBody();
+        assertEquals(1, ranks.size());
+        List<Map> levels = (List<Map>) ranks.get(0).get("levels");
+        assertEquals(1, levels.size());
+        assertEquals(0, levels.get(0).get("sortOrder"));
+        assertEquals(10, ((Number) levels.get(0).get("number")).intValue());
+
+        // Deleting the last remaining level must remove the tier entirely.
+        Long level10Id = ((Number) levels.get(0).get("id")).longValue();
+        ResponseEntity<Void> deleteLastResponse = rest.exchange(
+                DOJOS_URL + "/" + dojoId + "/ranks/" + rankId + "/levels/" + level10Id,
+                HttpMethod.DELETE, authed(token, null), Void.class);
+        assertEquals(HttpStatus.NO_CONTENT, deleteLastResponse.getStatusCode());
+
+        ResponseEntity<List> emptyRanksResponse = rest.exchange(DOJOS_URL + "/" + dojoId + "/ranks",
+                HttpMethod.GET, authed(token, null), List.class);
+        assertEquals(0, emptyRanksResponse.getBody().size());
+    }
+
     private String login(String email) {
         Map<String, String> credentials = new HashMap<>();
         credentials.put("email", email);

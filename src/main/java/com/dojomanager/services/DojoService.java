@@ -138,8 +138,16 @@ public class DojoService {
             rankService.saveRankName(rankName);
         }
 
-        List<RankSetting> existingSettings = rankService.findSettingsByRankName(rankName);
-        List<CreateDojoRequest.RankLevelRequest> levelRequests = request.getLevels() != null ? request.getLevels() : List.of();
+        // findSettingsByRankName has no ORDER BY; sort both sides by sortOrder so
+        // index-based mapping lines up with the ladder order the UI sends.
+        List<RankSetting> existingSettings = rankService.findSettingsByRankName(rankName).stream()
+                .sorted(Comparator.comparingInt(rs -> rs.getRankLevel() != null ? rs.getRankLevel().getSortOrder() : 0))
+                .toList();
+        List<CreateDojoRequest.RankLevelRequest> levelRequests = request.getLevels() != null
+                ? request.getLevels().stream()
+                        .sorted(Comparator.comparingInt(CreateDojoRequest.RankLevelRequest::getSortOrder))
+                        .toList()
+                : List.of();
 
         for (int i = 0; i < levelRequests.size(); i++) {
             CreateDojoRequest.RankLevelRequest req = levelRequests.get(i);
@@ -215,6 +223,43 @@ public class DojoService {
         }
 
         rankService.deleteRankName(rankName);
+    }
+
+    /**
+     * Deletes a single level inside a rank tier. Students assigned to OTHER
+     * levels of the same tier do not block the delete — only an assignment to
+     * this exact level does. If the tier ends up with zero levels the tier
+     * (RankName) itself is removed as well.
+     */
+    @Transactional
+    public void deleteRankLevel(OwnerPrincipal principal, Long dojoId, Long rankId, Long rankLevelId) {
+        Dojo dojo = requireOwnedDojo(principal, dojoId);
+        RankName rankName = rankService.findRankNameById(rankId)
+                .orElseThrow(() -> new ResourceNotFoundException("Rank " + rankId + " was not found"));
+
+        if (!dojo.getId().equals(rankName.getDojo().getId())) {
+            throw new ForbiddenOperationException("Rank does not belong to the owned dojo");
+        }
+
+        RankSetting target = rankService.findSettingsByRankName(rankName).stream()
+                .filter(rs -> rs.getRankLevel() != null && rankLevelId.equals(rs.getRankLevel().getId()))
+                .findFirst()
+                .orElseThrow(() -> new ResourceNotFoundException("Rank level " + rankLevelId + " was not found"));
+
+        if (rankService.isRankSettingAssigned(target)) {
+            throw new BadRequestException("Cannot delete rank level because students are currently assigned to it");
+        }
+
+        BeltColor belt = target.getBeltColor();
+        RankLevel level = target.getRankLevel();
+        rankService.deleteRankSetting(target);
+        if (belt != null) rankService.deleteBeltColor(belt);
+        if (level != null) rankService.deleteRankLevel(level);
+
+        // Remove the tier itself once its last level is gone.
+        if (rankService.findSettingsByRankName(rankName).isEmpty()) {
+            rankService.deleteRankName(rankName);
+        }
     }
 
     public List<RankDto> buildRankDtos(Dojo dojo) {
